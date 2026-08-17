@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import type { AuditEntry } from '@/types/audit'
 
 interface AuditState {
@@ -8,13 +7,8 @@ interface AuditState {
   clear: () => void
 }
 
-export const useAuditStore = create<AuditState>()(
-  persist(
-    (set) => ({
-      entries: [],
-      add: (entry) => set(s => ({ entries: [entry, ...s.entries].slice(0, 2000) })),
-      clear: () => set({ entries: [] }),
-    }),
-    { name: 'bacord-audit' }
-  )
-)
+export const useAuditStore = create<AuditState>()((set) => ({
+  entries: [],
+  add: (entry) => set(s => ({ entries: [entry, ...s.entries].slice(0, 2000) })),
+  clear: () => set({ entries: [] }),
+}))

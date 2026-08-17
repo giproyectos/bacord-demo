@@ -1,0 +1,633 @@
+
+<title>BACORD — Feature Gap Report</title>
+<style>
+  :root {
+    --navy:      #0A2D63;
+    --navy-mid:  #1A4080;
+    --amber:     #F7C92E;
+    --amber-dim: #BFA021;
+    --bg:        #F5F7FA;
+    --surface:   #FFFFFF;
+    --border:    #DDE3EE;
+    --ink:       #0C1428;
+    --ink-2:     #3A4663;
+    --ink-3:     #7A88A8;
+    --mono:      ui-monospace, 'Cascadia Code', 'SF Mono', monospace;
+    --sans:      system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+    /* semantic */
+    --red-bg:    #FEE2E2; --red-text:  #991B1B; --red-dot:   #EF4444;
+    --amber-bg:  #FEF3C7; --amber-text:#92400E; --amber-dot: #F59E0B;
+    --green-bg:  #D1FAE5; --green-text:#065F46; --green-dot: #10B981;
+    --blue-bg:   #DBEAFE; --blue-text: #1E40AF; --blue-dot:  #3B82F6;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:      #0D1117;
+      --surface: #161C26;
+      --border:  #1E2A3F;
+      --ink:     #E8EEF8;
+      --ink-2:   #9AAAC8;
+      --ink-3:   #4F6080;
+      --red-bg:  rgba(239,68,68,.12);  --red-text:  #FCA5A5;
+      --amber-bg:rgba(245,158,11,.12); --amber-text:#FCD34D;
+      --green-bg:rgba(16,185,129,.1);  --green-text:#6EE7B7;
+      --blue-bg: rgba(59,130,246,.12); --blue-text: #93C5FD;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:      #0D1117; --surface: #161C26; --border: #1E2A3F;
+    --ink:     #E8EEF8; --ink-2:   #9AAAC8; --ink-3:  #4F6080;
+    --red-bg:  rgba(239,68,68,.12);  --red-text:  #FCA5A5;
+    --amber-bg:rgba(245,158,11,.12); --amber-text:#FCD34D;
+    --green-bg:rgba(16,185,129,.1);  --green-text:#6EE7B7;
+    --blue-bg: rgba(59,130,246,.12); --blue-text: #93C5FD;
+  }
+  :root[data-theme="light"] {
+    --bg: #F5F7FA; --surface: #FFFFFF; --border: #DDE3EE;
+    --ink: #0C1428; --ink-2: #3A4663; --ink-3: #7A88A8;
+    --red-bg:#FEE2E2; --red-text:#991B1B;
+    --amber-bg:#FEF3C7; --amber-text:#92400E;
+    --green-bg:#D1FAE5; --green-text:#065F46;
+    --blue-bg:#DBEAFE; --blue-text:#1E40AF;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page { max-width: 780px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* ── Header ── */
+  .doc-header {
+    border-bottom: 2px solid var(--navy);
+    padding-bottom: 20px;
+    margin-bottom: 32px;
+  }
+  .doc-eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 8px;
+  }
+  .doc-title {
+    font-size: 26px;
+    font-weight: 800;
+    color: var(--ink);
+    letter-spacing: -.02em;
+    line-height: 1.15;
+    margin-bottom: 6px;
+  }
+  .doc-title span { color: var(--navy); }
+  .doc-sub {
+    font-size: 13px;
+    color: var(--ink-3);
+    margin-bottom: 16px;
+  }
+  .doc-meta {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 4px;
+    letter-spacing: .04em;
+    background: var(--blue-bg);
+    color: var(--blue-text);
+  }
+  .meta-chip.red   { background: var(--red-bg);   color: var(--red-text);   }
+  .meta-chip.amber { background: var(--amber-bg);  color: var(--amber-text); }
+  .meta-chip.green { background: var(--green-bg);  color: var(--green-text); }
+
+  /* ── Summary row ── */
+  .summary-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 36px;
+  }
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .sc-num {
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -.03em;
+    margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .sc-num.red   { color: var(--red-dot);   }
+  .sc-num.amber { color: var(--amber-dot); }
+  .sc-num.green { color: var(--green-dot); }
+  .sc-label { font-size: 11.5px; color: var(--ink-3); font-weight: 500; }
+
+  /* ── Context box ── */
+  .context-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--navy);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin-bottom: 36px;
+    font-size: 13px;
+    color: var(--ink-2);
+    line-height: 1.65;
+  }
+  .context-box strong { color: var(--ink); }
+
+  /* ── Section ── */
+  .section { margin-bottom: 36px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    padding: 2px 9px;
+    border-radius: 4px;
+  }
+  .section-label.p1 { background: var(--red-bg);   color: var(--red-text);   }
+  .section-label.p2 { background: var(--amber-bg);  color: var(--amber-text); }
+  .section-label.p3 { background: var(--blue-bg);   color: var(--blue-text);  }
+  .section-label.ok { background: var(--green-bg);  color: var(--green-text); }
+  .section-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -.01em;
+  }
+  .section-desc {
+    font-size: 12px;
+    color: var(--ink-3);
+    margin-left: auto;
+    font-family: var(--mono);
+  }
+
+  /* ── Feature card ── */
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .fc-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+    cursor: default;
+  }
+  .fc-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+  .fc-status.red   { background: var(--red-dot);   }
+  .fc-status.amber { background: var(--amber-dot); }
+  .fc-status.green { background: var(--green-dot); }
+  .fc-status.blue  { background: var(--blue-dot);  }
+  .fc-body { flex: 1; min-width: 0; }
+  .fc-name {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 3px;
+    letter-spacing: -.005em;
+  }
+  .fc-origin {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    margin-bottom: 6px;
+    letter-spacing: .03em;
+  }
+  .fc-desc {
+    font-size: 12.5px;
+    color: var(--ink-2);
+    line-height: 1.6;
+  }
+  .fc-tags {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .tag {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 3px;
+    letter-spacing: .04em;
+    background: var(--blue-bg);
+    color: var(--blue-text);
+  }
+  .tag.ui   { background: #F3E8FF; color: #6D28D9; }
+  .tag.api  { background: var(--amber-bg); color: var(--amber-text); }
+  .tag.state{ background: #ECFDF5; color: #065F46; }
+
+  /* dark overrides for colored tags */
+  @media (prefers-color-scheme: dark) {
+    .tag.ui   { background: rgba(109,40,217,.2); color: #C4B5FD; }
+    .tag.api  { background: var(--amber-bg); color: var(--amber-text); }
+    .tag.state{ background: var(--green-bg); color: var(--green-text); }
+  }
+  :root[data-theme="dark"] .tag.ui   { background: rgba(109,40,217,.2); color: #C4B5FD; }
+  :root[data-theme="dark"] .tag.state{ background: var(--green-bg); color: var(--green-text); }
+
+  .fc-note {
+    border-top: 1px solid var(--border);
+    padding: 10px 16px 12px 36px;
+    font-size: 11.5px;
+    color: var(--ink-3);
+    background: var(--bg);
+    line-height: 1.6;
+  }
+  .fc-note code {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    background: var(--border);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--ink-2);
+  }
+
+  /* ── OK list (existing features) ── */
+  .ok-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .ok-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    color: var(--ink-2);
+  }
+  .ok-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green-dot);
+    flex-shrink: 0;
+    margin-top: 5px;
+  }
+
+  /* ── Footer ── */
+  .doc-footer {
+    margin-top: 48px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    letter-spacing: .06em;
+  }
+
+  @media (max-width: 560px) {
+    .summary-row { grid-template-columns: 1fr 1fr; }
+    .ok-grid { grid-template-columns: 1fr; }
+    .section-desc { display: none; }
+  }
+</style>
+
+<div class="page">
+
+  <!-- Header -->
+  <div class="doc-header">
+    <div class="doc-eyebrow">BACORD · Feature Gap Analysis · v1.0</div>
+    <div class="doc-title"><span>BACORD</span> — Funcionalidades faltantes para demo en video</div>
+    <div class="doc-sub">Análisis basado en scripts de grabación Jun–Jul 2026 vs. código actual del frontend</div>
+    <div class="doc-meta">
+      <span class="meta-chip red">5 críticas</span>
+      <span class="meta-chip amber">4 importantes</span>
+      <span class="meta-chip">3 largo plazo (IA)</span>
+      <span class="meta-chip green">11 ya implementadas</span>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary-row">
+    <div class="summary-card">
+      <div class="sc-num red">5</div>
+      <div class="sc-label">Prioridad 1 — Críticas<br>Bloquean el Video 1 (YouTube)</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-num amber">4</div>
+      <div class="sc-label">Prioridad 2 — Importantes<br>Necesarias para Video 5</div>
+    </div>
+    <div class="summary-card">
+      <div class="sc-num" style="color:var(--blue-dot)">3</div>
+      <div class="sc-label">Prioridad 3 — Largo plazo<br>Módulos de IA (Videos 7, 9, 14)</div>
+    </div>
+  </div>
+
+  <!-- Context -->
+  <div class="context-box">
+    <strong>Contexto:</strong> BACORD es el demo público de ZENTTRA para manufactura farmacéutica regulada. El equipo comercial va a grabar 15 videos (YouTube + Reels) usando el sistema en vivo. Este reporte lista exactamente qué funcionalidades menciona el script de cada video pero <strong>no existen todavía en el código</strong>. Toda la data del demo es ficticia — no hay restricciones de confidencialidad sobre lo que se muestra.
+  </div>
+
+  <!-- P1 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-label p1">Prioridad 1 — Crítica</span>
+      <span class="section-title">Bloquean el Video 1 de YouTube (demo principal)</span>
+      <span class="section-desc">Videos afectados: V1</span>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status red"></div>
+        <div class="fc-body">
+          <div class="fc-name">Validación de rango en campos numéricos</div>
+          <div class="fc-origin">Mencionado en V1 · 2:30–4:30 "el sistema valida automáticamente que esté dentro de rango"</div>
+          <div class="fc-desc">Los campos <code>type: 'number'</code> del schema del formulario deben soportar propiedades <code>min</code> y <code>max</code>. Si el valor ingresado cae fuera del rango, el campo debe marcar un estado visual de error/advertencia en tiempo real.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · FormRenderer</span>
+            <span class="tag">schema JSON</span>
+          </div>
+        </div>
+      </div>
+      <div class="fc-note">
+        Afecta: <code>EditarBatchRecord.tsx</code> → componente de renderizado de campos numéricos. El schema ya tiene el type <code>'number'</code> definido; solo falta agregar <code>min</code>, <code>max</code> y el feedback visual al parseSchema.
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status red"></div>
+        <div class="fc-body">
+          <div class="fc-name">Módulo de gestión de desviaciones</div>
+          <div class="fc-origin">Mencionado en V1 · 4:30–6:00 "abre automáticamente el flujo de reporte de desviación"</div>
+          <div class="fc-desc">Cuando un valor numérico supera el rango permitido, debe dispararse un modal de desviación que capture: descripción, fecha/hora automática, usuario activo, paso del proceso donde ocurrió. La desviación queda registrada en el BR y visible en la lista con un badge de alerta.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · Modal</span>
+            <span class="tag state">Estado global</span>
+            <span class="tag">nuevo módulo</span>
+          </div>
+        </div>
+      </div>
+      <div class="fc-note">
+        Requiere: nuevo store <code>desviacionesStore.ts</code>, mock data <code>mockDesviaciones</code>, modal de captura, y sección de desviaciones en la vista de consulta del BR. La desviación debe quedar vinculada al <code>idDetalle</code> y al <code>idBatchRecord</code>.
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status red"></div>
+        <div class="fc-body">
+          <div class="fc-name">Badge de alerta en dashboard cuando hay desviación activa</div>
+          <div class="fc-origin">Mencionado en V1 · 4:30–6:00 "Calidad recibe la alerta en tiempo real"</div>
+          <div class="fc-desc">El dashboard debe mostrar un KPI card o banner destacado cuando existen desviaciones abiertas en BRs activos. El número de desviaciones pendientes debe ser visible al entrar al sistema.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · Dashboard</span>
+            <span class="tag state">mockDesviaciones</span>
+          </div>
+        </div>
+      </div>
+      <div class="fc-note">
+        Depende del módulo de desviaciones (ítem anterior). Agregar un KPI card adicional en <code>DashboardPage.tsx</code> que lea de <code>mockDesviaciones</code> y muestre las abiertas con color rojo.
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status red"></div>
+        <div class="fc-body">
+          <div class="fc-name">Generador de paquete de auditoría en PDF</div>
+          <div class="fc-origin">Mencionado en V1 · 6:00–7:30 "genera el PDF listo para inspección en segundos"</div>
+          <div class="fc-desc">Un botón "Generar Paquete de Auditoría" en la vista de consulta del BR (modo solo lectura) que compile: datos del BR completo, firmas con timestamp, audit trail, y desviaciones si las hay. Exporta como PDF descargable con la librería <code>xlsx</code> ya instalada o con <code>window.print()</code> mejorado con estilos de impresión dedicados.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · ConsultarBatchRecord</span>
+            <span class="tag api">PDF export</span>
+          </div>
+        </div>
+      </div>
+      <div class="fc-note">
+        El botón "Imprimir" ya existe en <code>EditarBatchRecord.tsx</code> (<code>handlePrint</code>). Se puede extender con una hoja de estilos <code>@media print</code> dedicada que genere un PDF estructurado con índice, firmas y audit trail. Alternativa: usar la librería <code>jsPDF</code> si se quiere más control.
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status red"></div>
+        <div class="fc-body">
+          <div class="fc-name">Botón "Nuevo Batch Record" directo desde la lista</div>
+          <div class="fc-origin">Mencionado en V1 · 1:30–2:30 "Hago clic en 'Nuevo Lote'"</div>
+          <div class="fc-desc">El script del video describe crear un BR directamente desde el dashboard o la lista de BRs. Actualmente el flujo obliga a crear primero una Fórmula de Control. Para el video, se necesita un acceso directo que cree el BR tomando la primera Fórmula disponible en estado aprobado, sin exponer ese flujo al espectador.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · BatchRecordList</span>
+            <span class="tag state">mockFormulasControl</span>
+          </div>
+        </div>
+      </div>
+      <div class="fc-note">
+        Opción más simple para el demo: agregar un botón "Nuevo Batch Record" en <code>BatchRecordList.tsx</code> que, al hacer clic, seleccione automáticamente la primera FC disponible y cree el BR sin mostrar un formulario intermedio. Solo para el flujo demo.
+      </div>
+    </div>
+  </div>
+
+  <!-- P2 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-label p2">Prioridad 2 — Importante</span>
+      <span class="section-title">Necesarias para el Video 5 (Tutorial auditoría INVIMA)</span>
+      <span class="section-desc">Videos afectados: V5, V6, V11</span>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status amber"></div>
+        <div class="fc-body">
+          <div class="fc-name">Filtros avanzados en la lista de Batch Records</div>
+          <div class="fc-origin">Mencionado en V5 · 1:00–2:30 "filtros por producto, línea, fecha, operario y estado"</div>
+          <div class="fc-desc">Agregar filtros de fecha (rango desde/hasta) y filtro por usuario creador a la lista de BRs. Actualmente solo filtra por estado y búsqueda libre de texto.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · BatchRecordList</span>
+            <span class="tag">filtros fecha</span>
+          </div>
+        </div>
+      </div>
+      <div class="fc-note">
+        Extender la barra de filtros de <code>BatchRecordList.tsx</code> con dos inputs de fecha (<code>fechaDesde</code> / <code>fechaHasta</code>) y un select de usuario que lea de <code>mockUsuarios</code>.
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status amber"></div>
+        <div class="fc-body">
+          <div class="fc-name">Vista de desviaciones por lote en ConsultarBatchRecord</div>
+          <div class="fc-origin">Mencionado en V5 · 4:00–5:30 "el módulo de desviaciones muestra todas las excepciones con evidencia del CAPA"</div>
+          <div class="fc-desc">La pantalla de consulta del BR debe incluir una sección "Desviaciones y No Conformidades" que liste todas las desviaciones registradas durante el lote, con estado (abierta/cerrada), quién la aprobó y cuándo se cerró.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · ConsultarBatchRecord</span>
+            <span class="tag state">mockDesviaciones</span>
+          </div>
+        </div>
+      </div>
+      <div class="fc-note">
+        Depende del módulo de desviaciones de P1. Agregar una sección colapsable al final de <code>ConsultarBatchRecord.tsx</code>.
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status amber"></div>
+        <div class="fc-body">
+          <div class="fc-name">Panel de Audit Trail expandido en la consulta</div>
+          <div class="fc-origin">Mencionado en V5 · 2:30–4:00 "quién tocó el batch record, cuándo, desde qué equipo y qué cambió"</div>
+          <div class="fc-desc">El audit trail en <code>ConsultarBatchRecord</code> debe mostrar: usuario, acción, campo modificado, valor anterior, valor nuevo, timestamp. El panel lateral de auditoría en edición ya existe parcialmente; se necesita una vista completa en modo consulta.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · ConsultarBatchRecord</span>
+            <span class="tag state">auditStore</span>
+          </div>
+        </div>
+      </div>
+      <div class="fc-note">
+        <code>auditStore.ts</code> y <code>auditDiff.ts</code> ya existen. La lógica está. Solo falta una vista completa (no el panel lateral pequeño) en la pantalla de consulta.
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status amber"></div>
+        <div class="fc-body">
+          <div class="fc-name">Paquete de auditoría multi-lote (selección masiva)</div>
+          <div class="fc-origin">Mencionado en V5 · 5:30–7:00 "selecciono todos y genero el paquete"</div>
+          <div class="fc-desc">Desde la lista de BRs, poder seleccionar múltiples registros con checkboxes y generar un paquete de auditoría consolidado que incluya todos los BRs seleccionados en un solo PDF.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · BatchRecordList</span>
+            <span class="tag api">PDF export</span>
+          </div>
+        </div>
+      </div>
+      <div class="fc-note">
+        Depende del generador de PDF de P1. Agregar columna de checkbox a <code>DataTable.tsx</code> y un botón de acción en masa en la barra de filtros.
+      </div>
+    </div>
+  </div>
+
+  <!-- P3 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-label p3">Prioridad 3 — Largo plazo</span>
+      <span class="section-title">Módulos de IA — Videos 7, 9 y 14</span>
+      <span class="section-desc">Videos afectados: V7, V9, V14</span>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status" style="background:var(--blue-dot)"></div>
+        <div class="fc-body">
+          <div class="fc-name">Dashboard de IA — Detección de patrones y anomalías</div>
+          <div class="fc-origin">Mencionado en V7 · "módulos de IA detectan patrones de desviación antes de que ocurran"</div>
+          <div class="fc-desc">Una pantalla o sección del dashboard que muestre métricas de IA sobre los datos históricos: tasa de anomalías por equipo, turno o materia prima, con gráficos de tendencia. Para el demo puede ser 100% mock data con valores realistas.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · nueva ruta /ia-analytics</span>
+            <span class="tag">mock data</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status" style="background:var(--blue-dot)"></div>
+        <div class="fc-body">
+          <div class="fc-name">Análisis de causa raíz — Vista de correlaciones</div>
+          <div class="fc-origin">Mencionado en V9 · "el modelo identificó el patrón: el 67% de las desviaciones en ese proceso..."</div>
+          <div class="fc-desc">Pantalla de análisis que muestre una "investigación" de anomalías: cruce entre desviaciones, equipos, turnos y materiales. Con un resultado de texto simulado del análisis de IA y gráficos de distribución.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · nueva ruta</span>
+            <span class="tag">Chart.js ya instalado</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="fc-header">
+        <div class="fc-status" style="background:var(--blue-dot)"></div>
+        <div class="fc-body">
+          <div class="fc-name">Indicador de "Listo para IA" en el perfil de datos del BR</div>
+          <div class="fc-origin">Mencionado en V14 · "si tienes datos acumulados en BACORD, ya tienes la materia prima"</div>
+          <div class="fc-desc">Un indicador en el dashboard que muestre cuántos meses de datos estructurados tiene el sistema disponibles para análisis de IA, como argumento visual para la transición al módulo de IA.</div>
+          <div class="fc-tags">
+            <span class="tag ui">UI · Dashboard</span>
+            <span class="tag state">mockBatchRecords</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Existing OK -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-label ok">Ya implementado</span>
+      <span class="section-title">Funcionalidades que sí existen y se pueden grabar sin cambios</span>
+    </div>
+    <div class="ok-grid">
+      <div class="ok-item"><div class="ok-dot"></div>Login con roles y permisos (admin / bacord2025)</div>
+      <div class="ok-item"><div class="ok-dot"></div>Dashboard con KPIs, gráficos de evolución y donut de estados</div>
+      <div class="ok-item"><div class="ok-dot"></div>Lista de Batch Records con filtro por estado y búsqueda libre</div>
+      <div class="ok-item"><div class="ok-dot"></div>Barra de avance por porcentaje de firmas completadas</div>
+      <div class="ok-item"><div class="ok-dot"></div>Editor de BR con etapas secuenciales bloqueadas</div>
+      <div class="ok-item"><div class="ok-dot"></div>Cabecera del BR pre-llenada desde la Orden de Proceso</div>
+      <div class="ok-item"><div class="ok-dot"></div>Firmas electrónicas con usuario, cargo, fecha y hora</div>
+      <div class="ok-item"><div class="ok-dot"></div>Cierre de etapa irreversible — desbloquea la siguiente</div>
+      <div class="ok-item"><div class="ok-dot"></div>Liberación de lote con firma de Director de Calidad</div>
+      <div class="ok-item"><div class="ok-dot"></div>Audit trail interno (auditStore + auditDiff)</div>
+      <div class="ok-item"><div class="ok-dot"></div>Cargue de Órdenes de Proceso desde CSV</div>
+      <div class="ok-item"><div class="ok-dot"></div>Gestión de Recetas Maestras, Fórmulas de Control, Firmas</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="doc-footer">
+    <span>BACORD · ZENTTRA · Gap Report v1.0 · Jul 2026</span>
+    <span>12 features existentes · 12 features faltantes</span>
+  </div>
+
+</div>

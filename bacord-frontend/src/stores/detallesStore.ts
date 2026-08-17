@@ -15,7 +15,9 @@ export interface DetalleStore {
   jsonOptions: string
 }
 
-const STORAGE_KEY = 'bacord_detalles_store'
+const STORAGE_KEY   = 'bacord_detalles_store'
+const VERSION_KEY   = 'bacord_schema_version'
+const SCHEMA_VERSION = 4  // bump when any bundled schema changes
 
 const DEFAULTS: DetalleStore[] = [
   { id: 101, codigo: 'ET1-F1', descripcion: 'Encabezado e Identificación del Lote',      estado: 'Activo', idEstrategiaFirma: 1, jsonSchema: SCHEMA_ET1_F1, jsonData: '', jsonOptions: '' },
@@ -36,7 +38,41 @@ function loadFromStorage(): DetalleStore[] | null {
   } catch { return null }
 }
 
-let _store: DetalleStore[] = loadFromStorage() ?? DEFAULTS
+function schemaHasComponents(jsonSchema: string): boolean {
+  try {
+    const obj = JSON.parse(jsonSchema)
+    const comps: unknown[] = Array.isArray(obj?.components) ? obj.components : []
+    return comps.length > 0
+  } catch { return false }
+}
+
+function mergeWithDefaults(stored: DetalleStore[]): DetalleStore[] {
+  const storedIds   = new Set(stored.map(d => d.id))
+  const defaultIds  = new Set(DEFAULTS.map(d => d.id))
+  const storedVer   = parseInt(localStorage.getItem(VERSION_KEY) ?? '0')
+  const needsReset  = storedVer < SCHEMA_VERSION
+
+  const merged = stored.map(s => {
+    const def = DEFAULTS.find(d => d.id === s.id)
+    // For standard schemas: reset when version bumped, or restore if empty
+    if (def && (needsReset || !schemaHasComponents(s.jsonSchema))) {
+      return { ...s, jsonSchema: def.jsonSchema }
+    }
+    return s  // custom user-created schemas preserved as-is
+  })
+
+  // Add default IDs not yet in stored snapshot
+  DEFAULTS.forEach(def => { if (!storedIds.has(def.id)) merged.push(def) })
+
+  if (needsReset) {
+    try { localStorage.setItem(VERSION_KEY, String(SCHEMA_VERSION)) } catch {}
+  }
+
+  return merged.sort((a, b) => a.id - b.id)
+}
+
+const _stored = loadFromStorage()
+let _store: DetalleStore[] = _stored ? mergeWithDefaults(_stored) : DEFAULTS
 let _nextId = Math.max(9, ..._store.map(d => d.id)) + 1
 
 export function getDetalles(): DetalleStore[]           { return _store }

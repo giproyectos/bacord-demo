@@ -1,6 +1,7 @@
 import { useAuditStore } from '@/stores/auditStore'
 import { useAuthStore } from '@/stores/authStore'
 import type { AuditAccion, AuditEntidad, AuditCambio } from '@/types/audit'
+import { randomUUID } from '@/utils/uuid'
 
 const CARGO_MAP: Record<string, string> = {
   'Producción':      'Operario de Producción',
@@ -49,7 +50,7 @@ export function useAudit() {
     })
 
     add({
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       timestamp: new Date().toISOString(),
       ...actor,
       ...rest,

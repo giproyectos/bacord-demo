@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/stores/authStore'
+import { useAuditStore } from '@/stores/auditStore'
+import { randomUUID } from '@/utils/uuid'
 
 export function LoginPage() {
   const [login, setLogin] = useState('')
@@ -17,10 +19,38 @@ export function LoginPage() {
     e.preventDefault()
     if (!login || !clave) return
     setLoading(true); setError('')
+    const addAudit = useAuditStore.getState().add
     try {
       const user = await authApi.login(login, clave)
+      addAudit({
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        idUsuario: user.idUsuario,
+        nombreUsuario: `${user.nombres} ${user.apellidos}`,
+        loginUsuario: user.login,
+        cargo: 'Usuario del sistema',
+        entidad: 'Sesion',
+        idEntidad: user.idUsuario,
+        descripcionEntidad: `Inicio de sesión exitoso — ${user.login}`,
+        accion: 'LOGIN',
+        modulo: 'autenticacion',
+      })
       setAuth(user); navigate('/')
     } catch (err: unknown) {
+      addAudit({
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        idUsuario: 0,
+        nombreUsuario: 'Desconocido',
+        loginUsuario: login.trim() || 'desconocido',
+        cargo: '—',
+        entidad: 'Sesion',
+        idEntidad: 0,
+        descripcionEntidad: `Intento de acceso fallido — usuario: "${login.trim()}"`,
+        accion: 'LOGIN_FALLIDO',
+        modulo: 'autenticacion',
+        motivo: err instanceof Error ? err.message : 'Error desconocido',
+      })
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')
     } finally { setLoading(false) }
   }

@@ -143,39 +143,34 @@
           "label": "Material / Ingredient",
           "key": "txtMaterial",
           "type": "textfield",
+          "disabled": true,
           "input": true,
-          "tableView": true,
-          "placeholder": "Nombre del material"
+          "tableView": true
         },
         {
           "label": "Código MP / RM Code",
           "key": "txtCodigoMP",
           "type": "textfield",
+          "disabled": true,
           "input": true,
-          "tableView": true,
-          "placeholder": "Código"
+          "tableView": true
         },
         {
           "label": "Lote Proveedor / Supplier Lot",
           "key": "txtLoteProveedor",
           "type": "textfield",
+          "disabled": true,
           "input": true,
-          "tableView": true,
-          "validate": {
-            "required": true
-          }
+          "tableView": true
         },
         {
           "label": "Cant. Teórica (kg) / Theoretical Qty",
           "key": "numCantTeorica",
           "type": "number",
+          "disabled": true,
           "input": true,
           "tableView": true,
-          "decimalLimit": 3,
-          "validate": {
-            "required": true,
-            "min": 0
-          }
+          "decimalLimit": 3
         },
         {
           "label": "Cant. Pesada (kg) / Weighed Qty",
@@ -184,6 +179,7 @@
           "input": true,
           "tableView": true,
           "decimalLimit": 3,
+          "description": "Especificación: desviación ≤ 0.5 % ✅ | ≤ 1.0 % ⚠️ revisar | > 1.0 % ❌ rechazado",
           "validate": {
             "required": true,
             "min": 0
@@ -234,7 +230,7 @@
           "input": true,
           "tableView": false,
           "showValidations": false,
-          "custom": "var now = new Date(); var pad = function(n){ return String(n).padStart(2,'0'); }; var f = pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds()); instance.data.txtHoraPesaje = f; instance.parent.triggerChange();"
+          "custom": "var now=new Date(); var pad=function(n){return String(n).padStart(2,'0');}; var f=pad(now.getHours())+':'+pad(now.getMinutes())+':'+pad(now.getSeconds()); var dg=instance.parent; var ri=instance.rowIndex; if(dg&&dg.rows&&ri!=null&&dg.rows[ri]&&dg.rows[ri].txtHoraPesaje){dg.rows[ri].txtHoraPesaje.setValue(f);}else{row.txtHoraPesaje=f;instance.triggerChange();}"
         }
       ]
     },

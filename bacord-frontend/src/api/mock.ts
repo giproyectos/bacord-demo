@@ -301,37 +301,37 @@ export const mockFormulasControl: FormulaControl[] = [
     idFormulaControl: 1, idRecetaMaestra: 1, idOrdenProceso: 1,
     motivoEstado: 'Fórmula de control aprobada para lote demo',
     idEstado: 2, idCentro: 1,
-    idUsuarioCreacion: 1, fechaCreacion: '2024-08-01T08:00:00',
+    idUsuarioCreacion: 1, fechaCreacion: '2025-11-01T08:00:00',
   },
   {
     idFormulaControl: 2, idRecetaMaestra: 2, idOrdenProceso: 2,
-    motivoEstado: 'FC aprobada — CARBOPLEX lote octubre 2024',
+    motivoEstado: 'FC aprobada — CARBOPLEX lote diciembre 2025',
     idEstado: 2, idCentro: 1,
-    idUsuarioCreacion: 1, fechaCreacion: '2024-10-10T09:00:00',
+    idUsuarioCreacion: 1, fechaCreacion: '2025-12-10T09:00:00',
   },
   {
     idFormulaControl: 3, idRecetaMaestra: 3, idOrdenProceso: 3,
-    motivoEstado: 'FC aprobada — INFLACORT suspensión noviembre 2024',
+    motivoEstado: 'FC aprobada — INFLACORT suspensión enero 2026',
     idEstado: 2, idCentro: 1,
-    idUsuarioCreacion: 2, fechaCreacion: '2024-11-18T08:30:00',
+    idUsuarioCreacion: 2, fechaCreacion: '2026-01-18T08:30:00',
   },
   {
     idFormulaControl: 4, idRecetaMaestra: 1, idOrdenProceso: 4,
-    motivoEstado: 'FC aprobada — SYNAPTOMAX segunda corrida diciembre 2024',
+    motivoEstado: 'FC aprobada — SYNAPTOMAX segunda corrida febrero 2026',
     idEstado: 2, idCentro: 1,
-    idUsuarioCreacion: 1, fechaCreacion: '2024-12-01T07:00:00',
+    idUsuarioCreacion: 1, fechaCreacion: '2026-02-01T07:00:00',
   },
   {
     idFormulaControl: 5, idRecetaMaestra: 2, idOrdenProceso: 5,
     motivoEstado: 'FC cancelada por desviación en proceso de compresión',
     idEstado: 3, idCentro: 1,
-    idUsuarioCreacion: 2, fechaCreacion: '2025-02-08T09:00:00',
+    idUsuarioCreacion: 2, fechaCreacion: '2026-03-08T09:00:00',
   },
   {
     idFormulaControl: 6, idRecetaMaestra: 1, idOrdenProceso: 6,
     motivoEstado: '',
     idEstado: 2, idCentro: 1,
-    idUsuarioCreacion: 1, fechaCreacion: '2025-05-28T08:00:00',
+    idUsuarioCreacion: 1, fechaCreacion: '2026-05-28T08:00:00',
   },
 ]
 
@@ -456,49 +456,186 @@ export const mockBatchRecords: BatchRecord[] = [
     idBatchRecord: 1, idFormulaControl: 1, idRecetaMaestra: 1,
     idOrdenProceso: 1, motivoEstado: '',
     idEstado: 1, idCentro: 1,
-    idUsuarioCreacion: 1, fechaCreacion: '2024-08-05T07:00:00',
-    idUsuarioModificacion: 1, fechaModificacion: '2024-08-12T14:30:00',
+    idUsuarioCreacion: 1, fechaCreacion: '2025-11-05T07:00:00',
+    idUsuarioModificacion: 1, fechaModificacion: '2025-11-12T14:30:00',
     porcentajeAvance: 33,
   },
   {
     idBatchRecord: 2, idFormulaControl: 2, idRecetaMaestra: 2,
     idOrdenProceso: 2, motivoEstado: '',
     idEstado: 1, idCentro: 1,
-    idUsuarioCreacion: 2, fechaCreacion: '2024-10-14T08:00:00',
-    idUsuarioModificacion: 2, fechaModificacion: '2024-10-18T11:00:00',
+    idUsuarioCreacion: 2, fechaCreacion: '2025-12-14T08:00:00',
+    idUsuarioModificacion: 2, fechaModificacion: '2025-12-18T11:00:00',
     porcentajeAvance: 67,
   },
   {
     idBatchRecord: 3, idFormulaControl: 3, idRecetaMaestra: 3,
     idOrdenProceso: 3, motivoEstado: '',
     idEstado: 1, idCentro: 1,
-    idUsuarioCreacion: 1, fechaCreacion: '2024-11-22T09:30:00',
-    idUsuarioModificacion: 3, fechaModificacion: '2024-11-25T16:45:00',
+    idUsuarioCreacion: 1, fechaCreacion: '2026-01-22T09:30:00',
+    idUsuarioModificacion: 3, fechaModificacion: '2026-01-25T16:45:00',
     porcentajeAvance: 89,
   },
   {
     idBatchRecord: 4, idFormulaControl: 4, idRecetaMaestra: 1,
     idOrdenProceso: 4, motivoEstado: '',
     idEstado: 2, idCentro: 1,
-    idUsuarioCreacion: 2, fechaCreacion: '2024-12-05T07:00:00',
-    idUsuarioModificacion: 4, fechaModificacion: '2024-12-09T17:00:00',
+    idUsuarioCreacion: 2, fechaCreacion: '2026-02-05T07:00:00',
+    idUsuarioModificacion: 4, fechaModificacion: '2026-02-09T17:00:00',
     porcentajeAvance: 100,
   },
   {
     idBatchRecord: 5, idFormulaControl: 5, idRecetaMaestra: 2,
     idOrdenProceso: 5, motivoEstado: 'Desviación crítica en peso de tabletas — fuera de especificación ±5%',
     idEstado: 3, idCentro: 1,
-    idUsuarioCreacion: 1, fechaCreacion: '2025-02-12T08:00:00',
-    idUsuarioModificacion: 1, fechaModificacion: '2025-02-13T10:15:00',
+    idUsuarioCreacion: 1, fechaCreacion: '2026-03-12T08:00:00',
+    idUsuarioModificacion: 1, fechaModificacion: '2026-03-13T10:15:00',
     porcentajeAvance: 22,
   },
   {
     idBatchRecord: 6, idFormulaControl: 6, idRecetaMaestra: 1,
     idOrdenProceso: 6, motivoEstado: '',
     idEstado: 1, idCentro: 1,
-    idUsuarioCreacion: 1, fechaCreacion: '2025-06-02T07:00:00',
-    idUsuarioModificacion: 1, fechaModificacion: '2025-06-02T07:00:00',
+    idUsuarioCreacion: 1, fechaCreacion: '2026-05-02T07:00:00',
+    idUsuarioModificacion: 1, fechaModificacion: '2026-05-02T07:00:00',
     porcentajeAvance: 0,
+  },
+]
+
+// Pre-populated firmados (cierre signatures) for mock BRs, keyed by idBatchRecord.
+// Format: cie:${detalleId}:${idFirma}
+// EF-01 (detalles 101-302): idFirma 1 (Operario) + idFirma 2 (Supervisor)
+// EF-02 (detalle 303 only): idFirma 2 (Jefe Prod) + idFirma 3 (Calidad) + idFirma 4 (Director)
+type MockFirma = { nombre: string; cargo: string; fecha: string; hora: string; loginUsuario: string; idUsuario: number }
+export const mockFirmadosBR: Record<number, Record<string, MockFirma>> = {
+  // BR1 — 33% — Etapa 1 completa (6/19 firmas)
+  1: {
+    'cie:101:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2025-11-05', hora: '08:15', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:101:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2025-11-05', hora: '08:42', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:102:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2025-11-05', hora: '10:05', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:102:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2025-11-05', hora: '10:28', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:103:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2025-11-05', hora: '11:03', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:103:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2025-11-05', hora: '11:18', loginUsuario: 'supervisor', idUsuario: 2 },
+  },
+  // BR2 — 67% — Etapas 1+2 completas (12/19 firmas)
+  2: {
+    'cie:101:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2025-12-14', hora: '07:45', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:101:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2025-12-14', hora: '08:10', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:102:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2025-12-14', hora: '09:55', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:102:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2025-12-14', hora: '10:22', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:103:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2025-12-14', hora: '11:08', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:103:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2025-12-14', hora: '11:30', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:201:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2025-12-15', hora: '07:30', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:201:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2025-12-15', hora: '07:55', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:202:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2025-12-15', hora: '19:40', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:202:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2025-12-15', hora: '20:05', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:203:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2025-12-15', hora: '20:48', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:203:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2025-12-15', hora: '21:05', loginUsuario: 'supervisor', idUsuario: 2 },
+  },
+  // BR3 — 89% — Etapas 1+2+3 excepto ET3-F3 (16/19 firmas)
+  3: {
+    'cie:101:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-01-22', hora: '08:00', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:101:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-01-22', hora: '08:25', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:102:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-01-22', hora: '10:10', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:102:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-01-22', hora: '10:35', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:103:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-01-22', hora: '11:15', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:103:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-01-22', hora: '11:40', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:201:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-01-23', hora: '07:00', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:201:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-01-23', hora: '07:22', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:202:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-01-23', hora: '17:10', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:202:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-01-23', hora: '17:35', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:203:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-01-23', hora: '18:20', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:203:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-01-23', hora: '18:45', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:301:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-01-24', hora: '08:30', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:301:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-01-24', hora: '09:00', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:302:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-01-24', hora: '15:20', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:302:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-01-24', hora: '15:50', loginUsuario: 'supervisor', idUsuario: 2 },
+  },
+  // BR4 — 100% — Todo firmado (19/19 firmas)
+  4: {
+    'cie:101:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-02-05', hora: '07:15', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:101:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-02-05', hora: '07:40', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:102:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-02-05', hora: '09:50', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:102:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-02-05', hora: '10:15', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:103:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-02-05', hora: '11:00', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:103:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-02-05', hora: '11:20', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:201:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-02-06', hora: '07:00', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:201:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-02-06', hora: '07:25', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:202:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-02-06', hora: '20:10', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:202:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-02-06', hora: '20:35', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:203:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-02-06', hora: '21:05', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:203:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-02-06', hora: '21:30', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:301:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-02-07', hora: '08:15', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:301:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-02-07', hora: '08:48', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:302:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-02-07', hora: '15:00', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:302:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-02-07', hora: '15:25', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:303:2': { nombre: 'Supervisor Producción', cargo: 'Jefe de Producción',           fecha: '2026-02-09', hora: '09:05', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:303:3': { nombre: 'Analista Calidad',      cargo: 'Analista de Laboratorio CQ',  fecha: '2026-02-09', hora: '10:18', loginUsuario: 'calidad',    idUsuario: 3 },
+    'cie:303:4': { nombre: 'Director Calidad',      cargo: 'Director Técnico de Planta',  fecha: '2026-02-09', hora: '11:42', loginUsuario: 'director',   idUsuario: 4 },
+  },
+  // BR5 — 22% — Solo ET1-F1 y ET1-F2 (4/19 firmas, cancelado por desviación crítica)
+  5: {
+    'cie:101:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-03-12', hora: '08:00', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:101:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-03-12', hora: '08:30', loginUsuario: 'supervisor', idUsuario: 2 },
+    'cie:102:1': { nombre: 'Operario Producción',   cargo: 'Técnico de Producción',       fecha: '2026-03-12', hora: '10:15', loginUsuario: 'operario',   idUsuario: 1 },
+    'cie:102:2': { nombre: 'Supervisor Producción', cargo: 'Supervisor de Turno',          fecha: '2026-03-12', hora: '10:40', loginUsuario: 'supervisor', idUsuario: 2 },
+  },
+  // BR6 — 0% — Sin firmas (objeto vacío implícito, no incluido)
+}
+
+// ── Desviaciones ──────────────────────────────────────────────────────────────
+export interface Desviacion {
+  id: number
+  idBatchRecord: number
+  idDetalle: number
+  detalleCode: string
+  campo: string
+  labelCampo: string
+  valorIngresado: string
+  limiteInfo: string
+  descripcion: string
+  estado: 'abierta' | 'cerrada'
+  usuario: string
+  cargo: string
+  fechaHora: string
+  observacionCierre?: string
+  fechaCierre?: string
+  usuarioCierre?: string
+}
+
+export const mockDesviaciones: Desviacion[] = [
+  {
+    id: 1,
+    idBatchRecord: 3,
+    idDetalle: 201,
+    detalleCode: 'ET2-F1',
+    campo: 'numVelocidadObj',
+    labelCampo: 'Velocidad Objetivo (cáps/min)',
+    valorIngresado: '3250',
+    limiteInfo: 'min: 100 – max: 3000',
+    descripcion: 'Velocidad programada en encapsuladora superó el límite máximo durante configuración del turno. Se corrigió a 2900 cáps/min dentro del rango aceptado.',
+    estado: 'abierta',
+    usuario: 'Carlos Mendoza',
+    cargo: 'Operario de Producción',
+    fechaHora: '2026-01-16T09:45:00.000Z',
+  },
+  {
+    id: 2,
+    idBatchRecord: 5,
+    idDetalle: 101,
+    detalleCode: 'ET1-F1',
+    campo: 'numTemperatura',
+    labelCampo: 'Temperatura (°C)',
+    valorIngresado: '32',
+    limiteInfo: 'min: 15 – max: 30',
+    descripcion: 'Temperatura de sala superó el límite permitido (32 °C vs. máximo 30 °C). Lote cancelado preventivamente por el Supervisor de Calidad hasta restablecer condiciones ambientales.',
+    estado: 'cerrada',
+    usuario: 'Ana Torres',
+    cargo: 'Operario de Producción',
+    fechaHora: '2026-03-12T08:45:00.000Z',
+    observacionCierre: 'Lote cancelado. Condiciones ambientales restablecidas. Área habilitada para nuevo batch.',
+    fechaCierre: '2026-03-12T10:30:00.000Z',
+    usuarioCierre: 'Supervisor de Producción',
   },
 ]
 

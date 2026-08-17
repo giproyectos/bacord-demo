@@ -149,6 +149,7 @@
               "tableView": true,
               "defaultValue": 0,
               "disabled": true,
+              "description": "Norma: 0 defectos críticos aceptados — NCA = 0 (ISO 2859-1 / ANSI/ASQ Z1.4)",
               "calculateValue": "value = 0;"
             }
           ]
@@ -242,7 +243,7 @@
           "input": true,
           "tableView": false,
           "showValidations": false,
-          "custom": "var now=new Date(); var pad=function(n){return String(n).padStart(2,'0');}; row.txtHoraInsp=pad(now.getHours())+':'+pad(now.getMinutes()); instance.triggerChange();"
+          "custom": "var now=new Date(); var pad=function(n){return String(n).padStart(2,'0');}; var f=pad(now.getHours())+':'+pad(now.getMinutes()); var dg=instance.parent; var ri=instance.rowIndex; if(dg&&dg.rows&&ri!=null&&dg.rows[ri]&&dg.rows[ri].txtHoraInsp){dg.rows[ri].txtHoraInsp.setValue(f);}else{row.txtHoraInsp=f;instance.triggerChange();}"
         },
         {
           "label": "Unidades Inspeccionadas",

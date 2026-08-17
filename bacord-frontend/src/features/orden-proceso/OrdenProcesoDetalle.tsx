@@ -6,11 +6,6 @@ import { formulaControlApi } from '@/api/formulaControl'
 import { mockFormulasControl, mockRecetas, mockBatchRecords } from '@/api/mock'
 import type { OrdenProceso, ComponenteOrden, FormulaControl, RecetaMaestra } from '@/types'
 
-const ESTADO_FC: Record<number, { label: string; bg: string; color: string }> = {
-  1: { label: 'En Tratamiento', bg: '#FEF3C7', color: '#92400E' },
-  2: { label: 'Enviada',        bg: '#D1FAE5', color: '#065F46' },
-  3: { label: 'Cancelada',      bg: '#FEE2E2', color: '#991B1B' },
-}
 
 const ESTADO_OP: Record<number, { label: string; bg: string; color: string }> = {
   1: { label: 'Liberada',   bg: 'rgba(209,250,229,0.15)', color: '#6EE7B7' },
@@ -37,8 +32,8 @@ export function OrdenProcesoDetalle() {
   const [receta, setReceta] = useState<RecetaMaestra | null>(null)
   const [fcExistente, setFcExistente] = useState<FormulaControl | null>(null)
   const [loading, setLoading] = useState(true)
-  const [creando, setCreando] = useState(false)
-  const [errorFC, setErrorFC] = useState('')
+  const [iniciando, setIniciando] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -56,17 +51,33 @@ export function OrdenProcesoDetalle() {
     }).finally(() => setLoading(false))
   }, [id])
 
-  const crearFC = async () => {
+  // Crea FC + envía (crea BR) en un solo paso y navega directo al BR
+  const iniciarBatchRecord = async () => {
     if (!op) return
-    setCreando(true)
-    setErrorFC('')
+    setIniciando(true)
+    setError('')
     try {
-      const fc = await formulaControlApi.crear(op.idOrdenProceso)
-      navigate(`/formulas-control/${fc.idFormulaControl}`)
+      let fc = fcExistente
+      if (!fc) fc = await formulaControlApi.crear(op.idOrdenProceso)
+      const br = await formulaControlApi.enviar(fc.idFormulaControl)
+      navigate(`/batch-records/${br.idBatchRecord}/editar`)
     } catch (e) {
-      setErrorFC(e instanceof Error ? e.message : 'Error al crear la Fórmula de Control')
-    } finally {
-      setCreando(false)
+      setError(e instanceof Error ? e.message : 'Error al iniciar el Batch Record')
+      setIniciando(false)
+    }
+  }
+
+  // Envía una FC ya existente (en tratamiento) y navega al BR
+  const activarBatchRecord = async () => {
+    if (!fcExistente) return
+    setIniciando(true)
+    setError('')
+    try {
+      const br = await formulaControlApi.enviar(fcExistente.idFormulaControl)
+      navigate(`/batch-records/${br.idBatchRecord}/editar`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al activar el Batch Record')
+      setIniciando(false)
     }
   }
 
@@ -84,7 +95,6 @@ export function OrdenProcesoDetalle() {
     </div>
   )
 
-  const fcCfg = fcExistente ? (ESTADO_FC[fcExistente.idEstado] ?? ESTADO_FC[1]) : null
 
   return (
     <>
@@ -188,71 +198,111 @@ export function OrdenProcesoDetalle() {
           )}
         </div>
 
-        {/* Fórmula de Control */}
-        <div className="op-det-card" style={{ flex: 1 }}>
-          <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(10,21,48,0.07)',
-            fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.07em' }}>
-            Fórmula de Control
-          </div>
-          <div style={{ padding: '14px 18px' }}>
-            {fcExistente ? (
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                  <span style={{ fontFamily: 'var(--f-mono)', fontWeight: 800, color: '#0A2D63', fontSize: 14 }}>
-                    FC-{fcExistente.idFormulaControl}
-                  </span>
-                  {fcCfg && (
-                    <span style={{ padding: '2px 8px', background: fcCfg.bg, color: fcCfg.color,
-                      borderRadius: 20, fontSize: 10.5, fontWeight: 700 }}>{fcCfg.label}</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 12, color: '#64748B', marginBottom: 10 }}>
-                  Creada: {new Date(fcExistente.fechaCreacion).toLocaleDateString('es-CO')}
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <Link to={`/formulas-control/${fcExistente.idFormulaControl}`}
-                    className="btn btn-primary" style={{ fontSize: 12, padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                    <i className="fa fa-eye" /> Ver fórmula de control
-                  </Link>
-                  {(() => {
-                    const br = mockBatchRecords.find(b => b.idOrdenProceso === fcExistente.idOrdenProceso)
-                    return br ? (
-                      <Link to={`/batch-records/${br.idBatchRecord}/editar`}
-                        className="btn btn-gray" style={{ fontSize: 12, padding: '6px 14px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <i className="fa fa-file-alt" /> BR-{br.idBatchRecord}
+        {/* Batch Record */}
+        {(() => {
+          const brExistente = fcExistente
+            ? mockBatchRecords.find(b => b.idOrdenProceso === fcExistente.idOrdenProceso) ?? null
+            : null
+          const fcEnTratamiento = fcExistente && fcExistente.idEstado === 1 && !brExistente
+
+          return (
+            <div className="op-det-card" style={{ flex: 1 }}>
+              <div style={{ padding: '12px 18px', borderBottom: '1px solid rgba(10,21,48,0.07)',
+                fontSize: 11, fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '.07em' }}>
+                Batch Record
+              </div>
+              <div style={{ padding: '18px 18px' }}>
+
+                {/* ── BR ya existe → acceso directo ── */}
+                {brExistente ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                      <span style={{ fontFamily: 'var(--f-mono)', fontWeight: 800, color: '#0A2D63', fontSize: 16 }}>
+                        BR-{brExistente.idBatchRecord}
+                      </span>
+                      <span style={{ padding: '2px 9px', background: '#DBEAFE', color: '#1D4ED8',
+                        borderRadius: 20, fontSize: 10.5, fontWeight: 700 }}>En Tratamiento</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748B', marginBottom: 16 }}>
+                      Iniciado: {new Date(brExistente.fechaCreacion).toLocaleDateString('es-CO')}
+                      {fcExistente && (
+                        <> · <Link to={`/formulas-control/${fcExistente.idFormulaControl}`}
+                          style={{ color: '#64748B', textDecoration: 'underline dotted' }}>
+                          FC-{fcExistente.idFormulaControl}
+                        </Link></>
+                      )}
+                    </div>
+                    <Link
+                      to={`/batch-records/${brExistente.idBatchRecord}/editar`}
+                      className="btn btn-primary"
+                      style={{ fontSize: 13, padding: '9px 20px', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                    >
+                      <i className="fa fa-file-alt" /> Abrir Batch Record
+                    </Link>
+                  </>
+                ) : fcEnTratamiento ? (
+                  /* ── FC existe pero BR no se ha generado aún ── */
+                  <>
+                    <div style={{ fontSize: 13, color: '#64748B', marginBottom: 6 }}>
+                      Fórmula de Control preparada.
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+                      <span style={{ fontFamily: 'var(--f-mono)', fontSize: 12, color: '#92400E' }}>
+                        FC-{fcExistente!.idFormulaControl}
+                      </span>
+                      <span style={{ padding: '2px 8px', background: '#FEF3C7', color: '#92400E',
+                        borderRadius: 20, fontSize: 10.5, fontWeight: 700 }}>En tratamiento</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button
+                        className="btn btn-primary"
+                        onClick={activarBatchRecord}
+                        disabled={iniciando}
+                        style={{ fontSize: 13, padding: '9px 20px', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                      >
+                        {iniciando
+                          ? <><i className="fa fa-spinner fa-spin" /> Iniciando...</>
+                          : <><i className="fa fa-play" /> Iniciar Batch Record</>}
+                      </button>
+                      <Link to={`/formulas-control/${fcExistente!.idFormulaControl}`}
+                        style={{ fontSize: 12, color: '#64748B' }}>
+                        Ver FC <i className="fa fa-external-link-alt" style={{ fontSize: 9 }} />
                       </Link>
-                    ) : null
-                  })()}
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: 13, color: '#64748B', marginBottom: 14 }}>
-                  No hay fórmula de control activa para esta orden.
-                </div>
-                <button className="btn btn-primary" onClick={crearFC} disabled={!receta || creando}
-                  title={!receta ? 'Se requiere una Receta Maestra vinculada' : ''}>
-                  {creando
-                    ? <><i className="fa fa-spinner fa-spin" /> Creando...</>
-                    : <><i className="fa fa-plus" /> Crear Fórmula de Control</>}
-                </button>
-                {!receta && (
-                  <div style={{ fontSize: 11.5, color: '#92400E', marginTop: 8 }}>
-                    <i className="fa fa-info-circle" style={{ marginRight: 4 }} />
-                    Requiere Receta Maestra vinculada
-                  </div>
+                    </div>
+                  </>
+                ) : (
+                  /* ── Sin FC ni BR ── */
+                  <>
+                    <div style={{ fontSize: 13, color: '#64748B', marginBottom: 16, lineHeight: 1.6 }}>
+                      {receta
+                        ? 'Esta orden está lista para iniciar producción.'
+                        : 'Se requiere una Receta Maestra vinculada antes de iniciar.'}
+                    </div>
+                    <button
+                      className="btn btn-primary"
+                      onClick={iniciarBatchRecord}
+                      disabled={!receta || iniciando}
+                      title={!receta ? 'Requiere Receta Maestra vinculada' : ''}
+                      style={{ fontSize: 13, padding: '9px 20px', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                    >
+                      {iniciando
+                        ? <><i className="fa fa-spinner fa-spin" /> Iniciando...</>
+                        : <><i className="fa fa-play" /> Iniciar Batch Record</>}
+                    </button>
+                  </>
                 )}
-                {errorFC && (
+
+                {error && (
                   <div style={{ fontSize: 12, color: '#991B1B', background: '#FEF2F2',
-                    border: '1px solid #FECACA', borderRadius: 6, padding: '7px 10px', marginTop: 8,
+                    border: '1px solid #FECACA', borderRadius: 6, padding: '7px 10px', marginTop: 12,
                     display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <i className="fa fa-exclamation-circle" />{errorFC}
+                    <i className="fa fa-exclamation-circle" /> {error}
                   </div>
                 )}
-              </>
-            )}
-          </div>
-        </div>
+              </div>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Componentes */}

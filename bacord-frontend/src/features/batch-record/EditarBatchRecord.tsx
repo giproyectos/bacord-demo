@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Eye, EyeOff } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
-import { mockEstrategiasFirma, mockUsuarios, mockBatchRecords } from '@/api/mock'
+import { mockEstrategiasFirma, mockUsuarios, mockBatchRecords, mockFirmadosBR, mockDesviaciones, type Desviacion } from '@/api/mock'
 import { formulaControlApi } from '@/api/formulaControl'
 import { batchRecordApi } from '@/api/batchRecord'
 import type { PreLlenadoBR } from '@/types'
@@ -36,6 +36,13 @@ const mkFS  = (key: string, label: string, idEF: number): SchemaComp         => 
 
 // ── Datos de firma ───────────────────────────────────────────────────────
 interface FirmaInfo { nombre: string; cargo: string; fecha: string; hora: string; loginUsuario: string; idUsuario: number }
+
+// Mapa detalle id → código corto
+const DETALLE_CODE: Record<number, string> = {
+  101: 'ET1-F1', 102: 'ET1-F2', 103: 'ET1-F3',
+  201: 'ET2-F1', 202: 'ET2-F2', 203: 'ET2-F3',
+  301: 'ET3-F1', 302: 'ET3-F2', 303: 'ET3-F3',
+}
 
 // Mapa grupo → cargo oficial en el sistema
 const GRUPO_CARGO: Record<string, string> = {
@@ -139,6 +146,7 @@ function buildDetalleInitialValues(detalleId: number, pl: PreLlenadoBR | null | 
       numTamanoLote:  pl.cantidadOrden,
     }
     case 102: return {
+      numTotalTeorico: parseFloat(totalKg.toFixed(3)),
       dgPesaje: pl.componentes.map(c => ({
         txtMaterial:      c.descripcionMaterialComponente,
         txtCodigoMP:      c.codigoMaterialComponente,
@@ -146,17 +154,17 @@ function buildDetalleInitialValues(detalleId: number, pl: PreLlenadoBR | null | 
         numCantTeorica:   c.cantidad,
       })),
     }
-    case 103: return {
-      numTotalTeorico: parseFloat(totalKg.toFixed(3)),
-    }
+    case 103: return {}
     case 201: return {
-      txtProductoSetup: pl.descripcionMaterial,
-      txtLoteSetup:     pl.loteLogistico,
-      numProdTeorica:   capsComp ? Math.round(capsComp.cantidad / 1000) : pl.cantidadOrden,
+      txtProducto:    pl.descripcionMaterial,
+      txtCodigo:      pl.codigoMaterial,
+      txtLote:        pl.loteLogistico,
+      numProdTeorica: capsComp ? Math.round(capsComp.cantidad / 1000) : pl.cantidadOrden,
     }
     case 202: return {
-      txtProductoCIP: pl.descripcionMaterial,
-      txtLoteCIP:     pl.loteLogistico,
+      txtProducto: pl.descripcionMaterial,
+      txtCodigo:   pl.codigoMaterial,
+      txtLote:     pl.loteLogistico,
     }
     case 203: return {
       numProdTeorRef: capsComp ? Math.round(capsComp.cantidad / 1000) : pl.cantidadOrden,
@@ -169,10 +177,145 @@ function buildDetalleInitialValues(detalleId: number, pl: PreLlenadoBR | null | 
       numCapsIngreso: pl.unidadMedida === 'kg' ? pl.cantidadOrden : Math.round(batchUnits / 1000),
     }
     case 303: return {
-      txtProductoCierre:  pl.descripcionMaterial,
-      txtCodigoCierre:    pl.codigoMaterial,
-      txtLoteCierre:      pl.loteLogistico,
-      txtLoteInspCierre:  pl.loteInspeccion,
+      txtProducto:      pl.descripcionMaterial,
+      txtCodigo:        pl.codigoMaterial,
+      txtLote:          pl.loteLogistico,
+      txtLoteInspCierre: pl.loteInspeccion,
+    }
+    default: return {}
+  }
+}
+
+// Mock data for operator-entered fields (ambient conditions, equipment IDs, measurements, etc.)
+// Merged into initialValues (iframe) and handlePrint fallback so forms look filled-in.
+function buildMockManualData(detalleId: number, pl: PreLlenadoBR | null | undefined, brNum: number): Record<string, unknown> {
+  if (!pl) return {}
+  // Only populate mock data for detalles that have been signed in this BR
+  const brFirmados = mockFirmadosBR[brNum] ?? {}
+  if (!Object.keys(brFirmados).some(k => k.startsWith(`cie:${detalleId}:`))) return {}
+  const brDates: Record<number, [string, string, string]> = {
+    1: ['2025-11-05', '2025-11-05', '2025-11-06'],
+    2: ['2025-12-14', '2025-12-15', '2025-12-16'],
+    3: ['2026-01-22', '2026-01-23', '2026-01-24'],
+    4: ['2026-02-05', '2026-02-06', '2026-02-07'],
+    5: ['2026-03-12', '2026-03-12', '2026-03-12'],
+  }
+  const [d1, d2, d3] = brDates[brNum] ?? ['2026-01-01', '2026-01-02', '2026-01-03']
+
+  switch (detalleId) {
+    case 101: return {
+      selSala:        'D01',
+      txtResponsable: 'Operario Producción',
+      txtBalanzaId:   'BAL-001',
+      numTemperatura: 22.5,
+      numHumedad:     48,
+      dtInicioEtapa1: `${d1} 07:30:00`,
+    }
+    case 102: {
+      const rows = pl.componentes.map((c, i) => ({
+        txtMaterial:      c.descripcionMaterialComponente,
+        txtCodigoMP:      c.codigoMaterialComponente,
+        txtLoteProveedor: c.loteComponente,
+        numCantTeorica:   c.cantidad,
+        numCantPesada:    Math.round((c.cantidad * (1 + [0.0015, -0.001, 0.002, -0.0005, 0.0018][i % 5])) * 1000) / 1000,
+        txtHoraPesaje:    ['08:45', '09:20', '09:55', '10:30', '11:05', '11:40'][i % 6],
+      }))
+      return {
+        txtBalanzaPesaje:  'BAL-001',
+        dtCalibBalanza:    '2025-06-15',
+        dtVigenciaBalanza: '2026-06-15',
+        dgPesaje: rows,
+      }
+    }
+    case 103: return {
+      dgChecklist: [
+        { txtItem: '1', txtDescripcion: 'Las materias primas pesadas corresponden a la fórmula aprobada / Weighed raw materials correspond to the approved formula', selEstado: 'SI' },
+        { txtItem: '2', txtDescripcion: 'Los contenedores de materias primas están correctamente identificados y etiquetados / RM containers are correctly identified and labeled', selEstado: 'SI' },
+        { txtItem: '3', txtDescripcion: 'La balanza utilizada tiene calibración vigente / The scale used has a valid calibration', selEstado: 'SI' },
+        { txtItem: '4', txtDescripcion: 'El área de dispensación fue limpiada y verificada antes del inicio / Dispensing area was cleaned and verified before start', selEstado: 'SI' },
+        { txtItem: '5', txtDescripcion: 'Las condiciones ambientales cumplen especificaciones (T: 18–25°C, HR: 30–60%) / Environmental conditions meet specs', selEstado: 'SI' },
+        { txtItem: '6', txtDescripcion: 'El rendimiento de dispensación está dentro del rango aceptado (99.0–101.0%) / Dispensing yield is within accepted range', selEstado: 'SI' },
+        { txtItem: '7', txtDescripcion: 'El material IFA fue pesado en doble verificación / IFA was weighed with double check', selEstado: 'SI' },
+        { txtItem: '8', txtDescripcion: 'Los recipientes dispensados fueron sellados y trasladados a producción / Dispensed containers were sealed and transferred to production', selEstado: 'SI' },
+      ],
+      dtCierreET1: `${d1} 11:30:00`,
+    }
+    case 201: return {
+      selEquipo:            'CAP01',
+      txtSerieEquipo:       '2022-GKF-001',
+      selSalaProduccion:    'P01',
+      txtOperadorPrincipal: 'Operario Producción',
+      selTamanoCap:         '0',
+      numVelocidadObj:      1500,
+      numPesoObjetivo:      320,
+      numLimiteAcept:       5,
+      dgPreArranque: [
+        { txtCheckItem: 'Máquina encapsuladora limpia (registro de limpieza disponible) / Clean encapsulator (cleaning record available)', selCheckRes: 'OK' },
+        { txtCheckItem: 'Partes de contacto de producto instaladas correctamente / Product-contact parts correctly installed', selCheckRes: 'OK' },
+        { txtCheckItem: 'Sistema de alimentación de cápsulas cargado y funcionando / Capsule feeding system loaded and running', selCheckRes: 'OK' },
+        { txtCheckItem: 'Sistema de alimentación de polvo cargado / Powder feeding system loaded', selCheckRes: 'OK' },
+        { txtCheckItem: 'Verificación de peso inicial con patrón / Initial weight verification with standard', selCheckRes: 'OK' },
+        { txtCheckItem: 'Sistema de cierre y bandeja de rechazo funcionando / Closing system and rejection tray operational', selCheckRes: 'OK' },
+      ],
+      dtInicioEncap: `${d2} 07:00:00`,
+    }
+    case 202: return {
+      numRSDMax: 2.0,
+      dgCIP: [
+        { txtHoraMuestreo: '08:00', numC1: 321.2, numC2: 319.8, numC3: 320.5, numC4: 318.9, numC5: 322.1, numC6: 319.4, numC7: 321.8, numC8: 320.2, numC9: 319.6, numC10: 320.8, numVelocidadActual: 1480 },
+        { txtHoraMuestreo: '08:30', numC1: 320.4, numC2: 321.1, numC3: 319.7, numC4: 320.9, numC5: 318.5, numC6: 321.3, numC7: 320.0, numC8: 319.8, numC9: 321.6, numC10: 320.2, numVelocidadActual: 1500 },
+        { txtHoraMuestreo: '09:00', numC1: 319.6, numC2: 320.3, numC3: 321.5, numC4: 319.2, numC5: 320.7, numC6: 321.9, numC7: 319.8, numC8: 320.5, numC9: 321.1, numC10: 320.0, numVelocidadActual: 1510 },
+        { txtHoraMuestreo: '09:30', numC1: 321.0, numC2: 319.5, numC3: 320.8, numC4: 321.4, numC5: 319.9, numC6: 320.3, numC7: 321.7, numC8: 319.1, numC9: 320.6, numC10: 321.2, numVelocidadActual: 1495 },
+      ],
+    }
+    case 203: return {
+      dtFinEncap:      `${d2} 20:30:00`,
+      numCapsulasProd: 312,
+      numRechazos:     0.8,
+    }
+    case 301: return {
+      selNivelInsp: 'II',
+      txtInspector:  'Analista Calidad',
+      dgInspeccion: [
+        { txtSubLote: 'SL-001', txtHoraInsp: '09:00', numUnidInsp: 200, numDefCrit: 0, numDefMayor: 1, numDefMenor: 2 },
+        { txtSubLote: 'SL-002', txtHoraInsp: '10:30', numUnidInsp: 200, numDefCrit: 0, numDefMayor: 0, numDefMenor: 3 },
+        { txtSubLote: 'SL-003', txtHoraInsp: '12:00', numUnidInsp: 200, numDefCrit: 0, numDefMayor: 2, numDefMenor: 1 },
+      ],
+    }
+    case 302: return {
+      numBlistProd:  22320,
+      numBlistRech:  12,
+      numCajasProd:  22308,
+      numCajasRech:  8,
+      dgMatEmpaque: [
+        { txtMatNombre: 'Lámina de Aluminio / Aluminum Foil', txtMatCodigo: 'EMP-001', txtMatLote: 'AL-2025-128', txtMatUnidad: 'm²',  numMatCantTeo: 580,   numMatCantUsada: 576  },
+        { txtMatNombre: 'PVC Transparente / Clear PVC',       txtMatCodigo: 'EMP-002', txtMatLote: 'PV-2025-044', txtMatUnidad: 'm²',  numMatCantTeo: 580,   numMatCantUsada: 575  },
+        { txtMatNombre: 'Caja Unitaria / Unit Box',           txtMatCodigo: 'EMP-003', txtMatLote: 'CB-2025-391', txtMatUnidad: 'unid', numMatCantTeo: 22400, numMatCantUsada: 22350 },
+        { txtMatNombre: 'Prospecto / Package Insert',         txtMatCodigo: 'EMP-004', txtMatLote: 'PI-2025-200', txtMatUnidad: 'unid', numMatCantTeo: 22400, numMatCantUsada: 22340 },
+      ],
+      dtInicioEmpaque: `${d3} 07:30:00`,
+      dtFinEmpaque:    `${d3} 17:00:00`,
+      // Control de Pesos chart state (stored outside form.io)
+      peso_min_spec: '9.5',
+      peso_opt_spec: '10.0',
+      peso_max_spec: '10.5',
+      peso_ctrl_1: '9.98',  peso_ctrl_2:  '10.02', peso_ctrl_3: '9.95',
+      peso_ctrl_4: '10.05', peso_ctrl_5:  '9.97',  peso_ctrl_6: '10.01',
+      peso_ctrl_7: '10.03', peso_ctrl_8:  '9.96',  peso_ctrl_9: '10.00',
+      peso_ctrl_10: '10.04',
+    }
+    case 303: return {
+      dgCheckCierre: [
+        { txtCheckCierreItem: 'Todos los formularios del batch record están completamente diligenciados / All batch record forms are fully completed', selCheckCierreRes: 'SI' },
+        { txtCheckCierreItem: 'Las desviaciones detectadas tienen número asignado y están bajo investigación / Detected deviations have assigned numbers and are under investigation', selCheckCierreRes: 'NA' },
+        { txtCheckCierreItem: 'El rendimiento global se encuentra dentro del rango especificado / Overall yield is within the specified range', selCheckCierreRes: 'SI' },
+        { txtCheckCierreItem: 'Las muestras de retención fueron tomadas y enviadas a archivo / Retention samples were taken and sent to archive', selCheckCierreRes: 'SI' },
+        { txtCheckCierreItem: 'Las muestras para control de calidad fueron enviadas al laboratorio / Quality control samples were sent to the laboratory', selCheckCierreRes: 'SI' },
+        { txtCheckCierreItem: 'Los materiales sobrantes fueron devueltos correctamente etiquetados / Remaining materials were returned with correct labels', selCheckCierreRes: 'SI' },
+        { txtCheckCierreItem: 'Las áreas de producción fueron limpiadas y liberadas para el próximo lote / Production areas were cleaned and released for next batch', selCheckCierreRes: 'SI' },
+        { txtCheckCierreItem: 'El producto terminado fue cuarentenado pendiente liberación por Calidad / Finished product was quarantined pending Quality release', selCheckCierreRes: 'SI' },
+      ],
+      txtObsFinales: 'Lote fabricado sin incidencias significativas. Todas las etapas completadas conforme a Buenas Prácticas de Manufactura.',
     }
     default: return {}
   }
@@ -220,6 +363,34 @@ function extractFieldLabels(schema: string): Record<string, string> {
   return labels
 }
 
+// Formatea un valor de form.io para mostrarlo de forma legible en auditoría / impresión
+function formatAuditValue(v: unknown): string {
+  if (v === null || v === undefined || v === '') return ''
+  if (typeof v === 'boolean') return v ? 'Sí' : 'No'
+  if (typeof v !== 'object') return String(v)
+
+  if (Array.isArray(v)) {
+    const rows = (v as Record<string, unknown>[]).filter(r => r && typeof r === 'object')
+    if (rows.length === 0) return '—'
+    const lines = rows.map((row, i) => {
+      const parts = Object.entries(row)
+        .filter(([k, rv]) =>
+          !k.startsWith('btn') &&
+          rv !== '' && rv !== null && rv !== undefined && rv !== false && rv !== '—'
+        )
+        .map(([, rv]) => String(rv))
+      return parts.length > 0 ? `[${i + 1}] ${parts.join(' · ')}` : null
+    }).filter(Boolean)
+    return lines.length > 0 ? lines.join('\n') : `${rows.length} fila(s)`
+  }
+
+  // Objeto plano
+  return Object.entries(v as Record<string, unknown>)
+    .filter(([k, ov]) => !k.startsWith('btn') && ov !== null && ov !== undefined && ov !== '')
+    .map(([, ov]) => String(ov))
+    .join(' · ') || '—'
+}
+
 // Diff plano entre dos snapshots de data form.io → cambios auditables
 function diffFormData(
   prev: Record<string, unknown>,
@@ -229,14 +400,19 @@ function diffFormData(
   const cambios: { campo: string; etiqueta: string; valorAnterior: string; valorNuevo: string }[] = []
   const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)])
   for (const key of allKeys) {
-    // Ignorar campos internos de form.io y objetos complejos sin cambio legible
-    if (key === 'submit') continue
+    if (key === 'submit' || key.startsWith('btn')) continue  // botones no son datos auditables
     const ant = prev[key]
     const nv  = next[key]
-    const antStr = typeof ant === 'object' ? JSON.stringify(ant) : String(ant ?? '')
-    const nvStr  = typeof nv  === 'object' ? JSON.stringify(nv)  : String(nv  ?? '')
-    if (antStr !== nvStr) {
-      cambios.push({ campo: key, etiqueta: labels[key] ?? key, valorAnterior: antStr, valorNuevo: nvStr })
+    // Comparación con JSON para detectar cambio real; display con formato legible
+    const antJson = typeof ant === 'object' ? JSON.stringify(ant) : String(ant ?? '')
+    const nvJson  = typeof nv  === 'object' ? JSON.stringify(nv)  : String(nv  ?? '')
+    if (antJson !== nvJson) {
+      cambios.push({
+        campo: key,
+        etiqueta: labels[key] ?? key,
+        valorAnterior: formatAuditValue(ant),
+        valorNuevo:    formatAuditValue(nv),
+      })
     }
   }
   return cambios
@@ -718,21 +894,27 @@ function FirmaSeccionBlockPanel({ block, blockIdx, detalleId, firmados, readonly
 }
 
 // ── FormioFrame ───────────────────────────────────────────────────────────
-function FormioFrame({ schema, locked = false, onDataChange, getInitialData }: {
+interface FormioRangeError { key: string; label: string; message: string }
+
+function FormioFrame({ schema, locked = false, lockedKeys, onDataChange, getInitialData, onValidation }: {
   schema: string
   locked?: boolean
+  lockedKeys?: string[]
   onDataChange?: (data: Record<string, unknown>) => void
   getInitialData?: () => Record<string, unknown>
+  onValidation?: (errors: FormioRangeError[]) => void
 }) {
   const ref = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(500)
   const onDataChangeRef = useRef(onDataChange)
+  const onValidationRef = useRef<((errors: FormioRangeError[]) => void) | undefined>(onValidation)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lockedRef = useRef(false)
   // Siempre apunta a la versión más reciente del callback — se actualiza con re-renders
   const getInitialDataRef = useRef(getInitialData)
 
   useEffect(() => { onDataChangeRef.current = onDataChange }, [onDataChange])
+  useEffect(() => { onValidationRef.current = onValidation }, [onValidation])
   useEffect(() => { getInitialDataRef.current = getInitialData }, [getInitialData])
 
   // Enviar LOCK_FORM cuando locked cambia a true (solo una vez)
@@ -759,6 +941,7 @@ function FormioFrame({ schema, locked = false, onDataChange, getInitialData }: {
           type: 'RENDER_JSON_WITH_DATA',
           value: schema,
           data: JSON.stringify({ data }),
+          lockedKeys: lockedKeys ?? [],
         }, '*')
       } else {
         frame.contentWindow?.postMessage({ type: 'RENDER_JSON', value: schema }, '*')
@@ -784,6 +967,9 @@ function FormioFrame({ schema, locked = false, onDataChange, getInitialData }: {
             onDataChangeRef.current?.(data)
           }, 700)
         } catch { /* JSON inválido — ignorar */ }
+      }
+      if (e.data?.type === 'VALIDATION_STATUS') {
+        onValidationRef.current?.(e.data.errors ?? [])
       }
     }
     window.addEventListener('message', onMsg)
@@ -871,13 +1057,119 @@ function missingRequired(jsonSchema: string, data: Record<string, unknown>): Val
   } catch { return [] }
 }
 
+// ── Desviación modal ─────────────────────────────────────────────────────
+function DesviacionModal({ error, valorIngresado, brId, detalleId, detalleCode, onSubmit, onClose }: {
+  error: FormioRangeError
+  valorIngresado: string
+  brId: number
+  detalleId: number
+  detalleCode: string
+  onSubmit: (desc: string) => void
+  onClose: () => void
+}) {
+  // detalleId used for future server-side logging
+  void detalleId
+  void brId
+  const user = useAuthStore(s => s.user)
+  const [desc, setDesc] = useState('')
+  const [done, setDone] = useState(false)
+
+  const handleSubmit = () => {
+    if (!desc.trim()) return
+    onSubmit(desc.trim())
+    setDone(true)
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.52)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={e => e.target === e.currentTarget && !done && onClose()}
+    >
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 520, boxShadow: '0 24px 48px rgba(0,0,0,0.28)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <div style={{ background: '#FFFBEB', padding: '14px 18px', borderBottom: '1.5px solid #FCD34D', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 9, background: '#D97706', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+            <i className="fa fa-triangle-exclamation" style={{ fontSize: 13, color: '#fff' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: '#78350F' }}>Reportar Desviación GMP</div>
+            <div style={{ fontSize: 11, color: '#92400E', marginTop: 1 }}>{detalleCode} · {error.label}</div>
+          </div>
+        </div>
+
+        {done ? (
+          <div style={{ padding: '32px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: '#D1FAE5', display: 'grid', placeItems: 'center' }}>
+              <i className="fa fa-check" style={{ fontSize: 22, color: '#059669' }} />
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#065F46' }}>Desviación registrada</div>
+              <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>
+                Reportada por {user?.nombres ?? user?.login} · {new Date().toLocaleDateString('es-CO')}
+              </div>
+            </div>
+            <button className="btn btn-primary" style={{ fontSize: 12, marginTop: 4 }} onClick={onClose}>Cerrar</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ background: '#F8FAFC', borderRadius: 9, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {([['Campo', error.label], ['Valor ingresado', valorIngresado || '—'], ['Validación', error.message]] as [string, string][]).map(([lbl, val]) => (
+                  <div key={lbl} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: '#94A3B8', minWidth: 120, textTransform: 'uppercase', letterSpacing: '.04em', paddingTop: 2 }}>{lbl}</span>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, color: '#0F172A', flex: 1 }}>{val}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 5 }}>
+                  Descripción y acción correctiva <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <textarea
+                  value={desc}
+                  onChange={e => setDesc(e.target.value)}
+                  rows={4}
+                  placeholder="Describa la causa de la desviación y la acción correctiva tomada..."
+                  autoFocus
+                  style={{
+                    width: '100%', border: `1.5px solid ${desc.trim() ? '#E2E8F0' : '#FCD34D'}`, borderRadius: 8,
+                    padding: '8px 11px', fontSize: 13, color: '#1E293B', resize: 'vertical', outline: 'none',
+                    boxSizing: 'border-box', fontFamily: 'var(--f-sans)', background: desc.trim() ? '#fff' : '#FFFBEB',
+                    transition: 'border-color .15s',
+                  }}
+                />
+              </div>
+              <div style={{ fontSize: 11.5, color: '#64748B' }}>
+                <i className="fa fa-user" style={{ marginRight: 5 }} />
+                Reportado por: <strong>{user?.nombres ?? user?.login}</strong> · {new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+            </div>
+            <div style={{ padding: '12px 18px', borderTop: '1px solid #F1F5F9', display: 'flex', justifyContent: 'flex-end', gap: 8, background: '#F8FAFC' }}>
+              <button className="btn btn-secondary" style={{ fontSize: 12 }} onClick={onClose}>Cancelar</button>
+              <button
+                className="btn btn-warning"
+                style={{ fontSize: 12, opacity: desc.trim() ? 1 : 0.5, cursor: desc.trim() ? 'pointer' : 'not-allowed' }}
+                disabled={!desc.trim()}
+                onClick={handleSubmit}
+              >
+                <i className="fa fa-triangle-exclamation" /> Registrar Desviación
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── DetalleCard ───────────────────────────────────────────────────────────
-function DetalleCard({ detalle, readonly, firmados, onFirmar, initialValues, onSave, onRequestDerogar, onFormData, preLlenado, brId }: {
+function DetalleCard({ detalle, readonly, firmados, onFirmar, initialValues, lockedKeys, onSave, onRequestDerogar, onFormData, preLlenado, brId }: {
   detalle: DetalleRow
   readonly: boolean
   firmados: FirmaMap
   onFirmar: (tipo: 'seccion' | 'cierre', firmaKey: string, texto: string, grupo: string) => void
   initialValues?: Record<string, unknown>
+  lockedKeys?: string[]
   onSave?: (detalleId: number, prev: Record<string,string>, next: Record<string,string>, labels: Record<string,string>) => void
   onRequestDerogar?: (firmaKey: string, blockKey: string, detalleId: number, firmaInfo: FirmaInfo, texto: string, grupo: string) => void
   onFormData?: (detalleId: number, prev: Record<string,unknown>, next: Record<string,unknown>, labels: Record<string,string>) => void
@@ -890,21 +1182,16 @@ function DetalleCard({ detalle, readonly, firmados, onFirmar, initialValues, onS
     Object.entries(initialValues ?? {}).filter(([, v]) => typeof v === 'string' || typeof v === 'number')
       .map(([k, v]) => [k, String(v)])
   ) as Record<string, string>
-  const [values,    setValues]    = useState<Record<string, string>>(scalarInitial)
-  const [committed, setCommitted] = useState<Record<string, string>>(scalarInitial)
+  const [values,       setValues]       = useState<Record<string, string>>(scalarInitial)
+  const [committed,    setCommitted]    = useState<Record<string, string>>(scalarInitial)
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
+  const [rangeErrors,  setRangeErrors]  = useState<FormioRangeError[]>([])
+  const [desviacionModal, setDesviacionModal] = useState<{ error: FormioRangeError; valorIngresado: string } | null>(null)
+  const [localDesviaciones, setLocalDesviaciones] = useState<Desviacion[]>([])
+  const numBrId = typeof brId === 'string' ? parseInt(brId, 10) : (brId ?? 0)
 
-  // Persistencia de datos del iframe entre aperturas/cierres del card y entre sesiones
-  const lsKey = brId ? `br_data_${brId}_${detalle.id}` : null
-  const savedDataRef = useRef<Record<string, unknown>>((() => {
-    if (lsKey) {
-      try {
-        const raw = localStorage.getItem(lsKey)
-        if (raw) return JSON.parse(raw) as Record<string, unknown>
-      } catch {}
-    }
-    return {}
-  })())
+  const lsKey = null  // datos del batch record no se persisten entre sesiones
+  const savedDataRef = useRef<Record<string, unknown>>({})
 
   // Callback que FormioFrame llama al cargar: prioriza datos guardados, cae a initialValues
   const getInitialData = useCallback((): Record<string, unknown> => {
@@ -925,6 +1212,21 @@ function DetalleCard({ detalle, readonly, firmados, onFirmar, initialValues, onS
     Array.from({ length: PESO_N }, (_, i) => String(savedDataRef.current[`peso_ctrl_${i + 1}`] ?? ''))
   )
 
+  // Sync peso states from initialValues when savedDataRef is empty (first load with mock data)
+  useEffect(() => {
+    if (detalle.id !== 302) return
+    if (Object.keys(savedDataRef.current).length > 0) return
+    if (!initialValues?.peso_min_spec) return
+    setPesoSpec({
+      min: String(initialValues.peso_min_spec ?? ''),
+      opt: String(initialValues.peso_opt_spec ?? ''),
+      max: String(initialValues.peso_max_spec ?? ''),
+    })
+    setPesos(Array.from({ length: PESO_N }, (_, i) =>
+      String(initialValues[`peso_ctrl_${i + 1}`] ?? '')
+    ))
+  }, [initialValues, detalle.id])
+
   const savePesoData = (spec: typeof pesoSpec, vals: string[]) => {
     Object.assign(savedDataRef.current, {
       peso_min_spec: spec.min,
@@ -935,27 +1237,25 @@ function DetalleCard({ detalle, readonly, firmados, onFirmar, initialValues, onS
     if (lsKey) try { localStorage.setItem(lsKey, JSON.stringify(savedDataRef.current)) } catch {}
   }
 
-  // Tracking de datos del iframe para audit trail
-  const prevDataRef    = useRef<Record<string, unknown> | null>(null)
-  const labelsRef      = useRef<Record<string, string>>({})
+  // Tracking de datos del iframe para audit trail.
+  // El baseline se fija desde el dato real inicial (guardado o {}), NO desde el primer
+  // mensaje recibido del iframe — un formulario en blanco nunca emite un "eco" inicial,
+  // por lo que tratar el primer mensaje como baseline descartaba silenciosamente el
+  // primer valor que el usuario realmente ingresaba.
+  const prevDataRef    = useRef<Record<string, unknown>>(getInitialData())
+  const labelsRef      = useRef<Record<string, string>>(extractFieldLabels(detalle.jsonSchema ?? ''))
   const onFormDataRef  = useRef(onFormData)
   useEffect(() => { onFormDataRef.current = onFormData }, [onFormData])
 
   const handleIframeData = useCallback((data: Record<string, unknown>) => {
     if (readonly) return
     savedDataRef.current = data
-    if (lsKey) { try { localStorage.setItem(lsKey, JSON.stringify(data)) } catch {} }
     setValidationErrors([])
-    if (prevDataRef.current === null) {
-      // Primera carga: guardar como baseline sin registrar evento
-      prevDataRef.current = data
-      labelsRef.current = extractFieldLabels(detalle.jsonSchema ?? '')
-      return
-    }
     const prev = prevDataRef.current
+    // Siempre notificar al padre para mantener el snapshot de print actualizado
+    onFormDataRef.current?.(detalle.id, prev, data, labelsRef.current)
     const cambios = diffFormData(prev, data, labelsRef.current)
     if (cambios.length > 0) {
-      onFormDataRef.current?.(detalle.id, prev, data, labelsRef.current)
       prevDataRef.current = { ...data }
     }
   }, [readonly, detalle.id, detalle.jsonSchema])
@@ -1032,7 +1332,15 @@ function DetalleCard({ detalle, readonly, firmados, onFirmar, initialValues, onS
       style={{ borderLeftColor: allCierDone ? '#2D5D4A' : cierFirmadas > 0 ? '#F59E0B' : 'rgba(10,21,48,0.1)' }}>
 
       {/* ── Header ── */}
-      <div className="det-header" onClick={() => setOpen(!open)}>
+      <div
+        className="det-header"
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        aria-label={`${detalle.descripcion} — ${open ? 'Colapsar' : 'Expandir'}`}
+        onClick={() => setOpen(!open)}
+        onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpen(!open))}
+      >
         {/* Status circle */}
         <div style={{
           width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
@@ -1722,7 +2030,60 @@ function DetalleCard({ detalle, readonly, firmados, onFirmar, initialValues, onS
             )
           })()}
 
-          <FormioFrame schema={detalle.jsonSchema ?? ''} locked={cierFirmadas > 0} onDataChange={handleIframeData} getInitialData={getInitialData} />
+          <FormioFrame schema={detalle.jsonSchema ?? ''} locked={cierFirmadas > 0} lockedKeys={lockedKeys} onDataChange={handleIframeData} getInitialData={getInitialData} onValidation={setRangeErrors} />
+
+          {/* ── Range errors from form.io ── */}
+          {rangeErrors.length > 0 && (
+            <div style={{
+              margin: '0 16px 10px', padding: '10px 14px',
+              background: '#FFFBEB', border: '1.5px solid #FCD34D',
+              borderRadius: 10, display: 'flex', flexDirection: 'column', gap: 6,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: 7, background: '#D97706',
+                  display: 'grid', placeItems: 'center', flexShrink: 0,
+                }}>
+                  <i className="fa fa-exclamation-triangle" style={{ fontSize: 9, color: '#fff' }} />
+                </div>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: '#92400E', flex: 1 }}>
+                  Valor fuera de rango — revisa antes de firmar
+                </span>
+              </div>
+              {rangeErrors.map((err, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  background: '#fff', borderRadius: 7, padding: '5px 10px',
+                  border: '1px solid #FDE68A',
+                }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color: '#78350F', flex: 1 }}>
+                    {err.label}
+                  </span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color: '#D97706',
+                    background: '#FEF3C7', borderRadius: 20,
+                    padding: '2px 8px', letterSpacing: '0.04em', textTransform: 'uppercase',
+                    flexShrink: 0,
+                  }}>
+                    fuera de rango
+                  </span>
+                  {!readonly && (
+                    <button
+                      style={{
+                        fontSize: 11, fontWeight: 700, color: '#92400E',
+                        background: '#FEF3C7', border: '1px solid #FCD34D',
+                        borderRadius: 6, padding: '3px 10px', cursor: 'pointer', flexShrink: 0,
+                        display: 'flex', alignItems: 'center', gap: 4,
+                      }}
+                      onClick={() => setDesviacionModal({ error: err, valorIngresado: String(savedDataRef.current[err.key] ?? '') })}
+                    >
+                      <i className="fa fa-flag" style={{ fontSize: 9 }} /> Reportar
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* ── Validation errors ── */}
           {validationErrors.length > 0 && (
@@ -1790,6 +2151,56 @@ function DetalleCard({ detalle, readonly, firmados, onFirmar, initialValues, onS
               </div>
             </div>
           )}
+
+          {/* ── Desviaciones registradas ── */}
+          {(() => {
+            const persisted = mockDesviaciones.filter(d => d.idBatchRecord === numBrId && d.idDetalle === detalle.id)
+            const allDevs   = [...persisted, ...localDesviaciones]
+            if (allDevs.length === 0) return null
+            return (
+              <div style={{ margin: '0 16px 10px', border: '1.5px solid #FCD34D', borderRadius: 10, overflow: 'hidden' }}>
+                <div style={{ background: '#FFFBEB', padding: '8px 14px', borderBottom: '1px solid #FDE68A', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <i className="fa fa-triangle-exclamation" style={{ color: '#D97706', fontSize: 11 }} />
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#78350F', textTransform: 'uppercase', letterSpacing: '.06em', flex: 1 }}>
+                    Desviaciones registradas ({allDevs.length})
+                  </span>
+                </div>
+                {allDevs.map((d, i) => (
+                  <div key={d.id ?? `local-${i}`} style={{ padding: '10px 14px', borderBottom: i < allDevs.length - 1 ? '1px solid #FEF3C7' : 'none', background: '#fff' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: '#78350F' }}>{d.labelCampo}</span>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 9px', borderRadius: 100, flexShrink: 0,
+                        background: d.estado === 'abierta' ? '#FEF3C7' : '#D1FAE5',
+                        color: d.estado === 'abierta' ? '#D97706' : '#065F46',
+                        textTransform: 'uppercase', letterSpacing: '.04em',
+                      }}>
+                        {d.estado === 'abierta' ? 'Abierta' : 'Cerrada'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#92400E', marginBottom: 5 }}>
+                      Valor: <strong>{d.valorIngresado}</strong> · {d.limiteInfo}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#1E293B', lineHeight: 1.5, marginBottom: 6 }}>{d.descripcion}</div>
+                    <div style={{ fontSize: 11, color: '#64748B', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <i className="fa fa-user" style={{ fontSize: 9 }} />
+                      {d.usuario} · {d.cargo}
+                      <span style={{ color: '#CBD5E1' }}>·</span>
+                      {new Date(d.fechaHora).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </div>
+                    {d.observacionCierre && (
+                      <div style={{ marginTop: 7, padding: '6px 10px', background: '#F0FDF4', borderRadius: 7, border: '1px solid #BBF7D0' }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, color: '#15803D', marginBottom: 2 }}>
+                          <i className="fa fa-check-circle" style={{ marginRight: 5 }} />Cierre · {d.usuarioCierre}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: '#166534' }}>{d.observacionCierre}</div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
 
           {/* ── Firma block ── */}
           {firmasCierre.length > 0 && (
@@ -1888,130 +2299,319 @@ function DetalleCard({ detalle, readonly, firmados, onFirmar, initialValues, onS
           )}
         </div>
       )}
+
+      {/* ── Modal de desviación ── */}
+      {desviacionModal && (
+        <DesviacionModal
+          error={desviacionModal.error}
+          valorIngresado={desviacionModal.valorIngresado}
+          brId={numBrId}
+          detalleId={detalle.id}
+          detalleCode={DETALLE_CODE[detalle.id] ?? detalle.descripcion.slice(0, 10)}
+          onSubmit={desc => {
+            const now = new Date().toISOString()
+            const newDev: Desviacion = {
+              id: Date.now(),
+              idBatchRecord: numBrId,
+              idDetalle: detalle.id,
+              detalleCode: DETALLE_CODE[detalle.id] ?? '',
+              campo: desviacionModal.error.key,
+              labelCampo: desviacionModal.error.label,
+              valorIngresado: desviacionModal.valorIngresado,
+              limiteInfo: desviacionModal.error.message,
+              descripcion: desc,
+              estado: 'abierta',
+              usuario: user?.nombres ?? user?.login ?? 'Operario',
+              cargo: GRUPO_CARGO[user?.grupos?.split(',')[0]?.trim() ?? ''] ?? 'Usuario',
+              fechaHora: now,
+            }
+            mockDesviaciones.push(newDev)
+            setLocalDesviaciones(prev => [...prev, newDev])
+          }}
+          onClose={() => setDesviacionModal(null)}
+        />
+      )}
     </div>
   )
 }
 
 // ── AuditPreviewPanel ─────────────────────────────────────────────────────
-const AUDIT_GRUPOS = ['Calidad', 'Supervisión', 'Administradores', 'Dirección']
-
-const AUDIT_ICON: Record<string, string> = {
-  CREAR: 'fa-plus', MODIFICAR: 'fa-pencil-alt', CANCELAR: 'fa-ban',
-  FIRMAR_SECCION: 'fa-pen', FIRMAR_CIERRE: 'fa-check-circle', DEROGAR_FIRMA: 'fa-undo',
-}
-const AUDIT_COLOR: Record<string, { bg: string; color: string; label: string }> = {
-  CREAR:          { bg:'#D1FAE5', color:'#065F46', label:'Creación' },
-  MODIFICAR:      { bg:'#DBEAFE', color:'#1D4ED8', label:'Modificación' },
-  CANCELAR:       { bg:'#FEE2E2', color:'#991B1B', label:'Cancelación' },
-  FIRMAR_SECCION: { bg:'#EDE9FE', color:'#5B21B6', label:'Firma Sección' },
-  FIRMAR_CIERRE:  { bg:'#EDE9FE', color:'#5B21B6', label:'Firma Cierre' },
-  DEROGAR_FIRMA:  { bg:'#FEF3C7', color:'#92400E', label:'Derogación' },
+const AUDIT_CFG: Record<string, { bg: string; color: string; border: string; label: string; icon: string }> = {
+  CREAR:          { bg:'#D1FAE5', color:'#065F46', border:'#6EE7B7', label:'Creación',     icon:'fa-plus' },
+  MODIFICAR:      { bg:'#DBEAFE', color:'#1D4ED8', border:'#93C5FD', label:'Modificación', icon:'fa-pencil-alt' },
+  CANCELAR:       { bg:'#FEE2E2', color:'#991B1B', border:'#FCA5A5', label:'Cancelación',  icon:'fa-ban' },
+  FIRMAR_SECCION: { bg:'#EDE9FE', color:'#5B21B6', border:'#C4B5FD', label:'Firma Sección',icon:'fa-pen' },
+  FIRMAR_CIERRE:  { bg:'#EDE9FE', color:'#5B21B6', border:'#C4B5FD', label:'Firma Cierre', icon:'fa-check-circle' },
+  DEROGAR_FIRMA:  { bg:'#FEF3C7', color:'#92400E', border:'#FDE68A', label:'Derogación',   icon:'fa-undo' },
+  LIBERAR_LOTE:   { bg:'#D1FAE5', color:'#065F46', border:'#6EE7B7', label:'Liberación',   icon:'fa-unlock' },
 }
 
-function AuditPreviewPanel({ detalleIds }: { detalleIds: number[] }) {
+const ALL_DETALLE_IDS = DETALLE_STRUCT.map(d => d.id)
+const DETALLE_LABEL   = Object.fromEntries(DETALLE_STRUCT.map(d => [d.id, d.descripcion]))
+
+function AuditPreviewPanel({ brId }: { brId: string | number }) {
   const allEntries = useAuditStore(s => s.entries)
+  const brIdNum    = Number(brId)
+
   const relevant = allEntries.filter(e =>
-    Object.keys(AUDIT_COLOR).includes(e.accion) &&
-    detalleIds.includes(Number(e.idEntidad))
-  ).slice(0, 60)
+    Object.keys(AUDIT_CFG).includes(e.accion) &&
+    (ALL_DETALLE_IDS.includes(Number(e.idEntidad)) || Number(e.idEntidad) === brIdNum)
+  )
+  const totalStore = allEntries.length
 
   return (
     <div className="audit-panel">
+      <style>{`
+        .audit-panel { display: flex; flex-direction: column; background: #0E1E3F; border-radius: 14px; overflow: hidden; min-width: 280px; max-width: 320px; border: 1.5px solid rgba(255,255,255,0.08); }
+        .audit-entry { padding: 10px 13px; border-bottom: 1px solid rgba(255,255,255,0.06); border-left: 3px solid transparent; transition: background 80ms; }
+        .audit-entry:hover { background: rgba(255,255,255,0.04); }
+        .audit-entry:last-child { border-bottom: none; }
+        .audit-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+        .audit-cambio { display: flex; gap: 6px; font-size: 10.5px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .audit-cambio:last-child { border-bottom: none; }
+        .audit-val { font-family: var(--f-mono); font-size: 10px; padding: 1px 5px; border-radius: 4px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .audit-val-ant { background: rgba(239,68,68,0.15); color: #FCA5A5; }
+        .audit-val-nv  { background: rgba(16,185,129,0.15); color: #6EE7B7; }
+        @media (prefers-reduced-motion: reduce) { .audit-entry { transition: none; } }
+      `}</style>
+
       {/* Header */}
-      <div style={{
-        background: '#0A2D63', padding: '12px 14px',
-        display: 'flex', alignItems: 'center', gap: 9,
-      }}>
-        <div style={{
-          width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-          background: 'rgba(247,201,46,0.15)', border: '1.5px solid rgba(247,201,46,0.25)',
-          display: 'grid', placeItems: 'center',
-        }}>
-          <i className="fa fa-history" style={{ color: '#F7C92E', fontSize: 11 }} />
+      <div style={{ padding: '11px 14px', display: 'flex', alignItems: 'center', gap: 9, borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: 'rgba(247,201,46,0.15)', border: '1.5px solid rgba(247,201,46,0.3)', display: 'grid', placeItems: 'center' }}>
+          <i className="fa fa-history" style={{ color: '#F7C92E', fontSize: 11 }} aria-hidden="true" />
         </div>
-        <span style={{ color: '#fff', fontWeight: 700, fontSize: 13, flex: 1 }}>Historial</span>
-        <span style={{
-          fontSize: 10.5, fontFamily: 'var(--f-mono)', fontWeight: 700,
-          background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.65)',
-          padding: '1px 9px', borderRadius: 10,
-        }}>
+        <span style={{ color: '#fff', fontWeight: 700, fontSize: 13, flex: 1 }}>Historial de Auditoría</span>
+        <span style={{ fontSize: 11, fontFamily: 'var(--f-mono)', fontWeight: 700, background: 'rgba(255,255,255,0.1)', color: relevant.length > 0 ? '#F7C92E' : 'rgba(255,255,255,0.4)', padding: '2px 8px', borderRadius: 10 }}
+          title={`${totalStore} evento${totalStore !== 1 ? 's' : ''} en total en el sistema`}>
           {relevant.length}
         </span>
       </div>
 
       {/* Entries */}
-      <div style={{ maxHeight: 'calc(100vh - 240px)', overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 260px)' }}>
         {relevant.length === 0 ? (
-          <div style={{ padding: '32px 16px', textAlign: 'center' }}>
-            <i className="fa fa-history" style={{
-              fontSize: 26, color: '#E2E8F0', marginBottom: 10, display: 'block',
-            }} />
-            <div style={{ fontSize: 12.5, fontWeight: 600, color: '#94A3B8' }}>Sin eventos aún</div>
-            <div style={{ fontSize: 11, color: '#CBD5E1', marginTop: 4, lineHeight: 1.5 }}>
-              Los cambios y firmas aparecen aquí en tiempo real.
+          <div style={{ padding: '36px 16px', textAlign: 'center' }}>
+            <i className="fa fa-history" style={{ fontSize: 28, color: 'rgba(255,255,255,0.1)', display: 'block', marginBottom: 12 }} aria-hidden="true" />
+            <div style={{ fontSize: 12.5, fontWeight: 600, color: 'rgba(255,255,255,0.3)', marginBottom: 6 }}>Sin eventos registrados</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', lineHeight: 1.6 }}>
+              Las firmas y cambios en campos<br />aparecen aquí en tiempo real.
             </div>
           </div>
         ) : relevant.map(e => {
-          const d    = new Date(e.timestamp)
-          const hora = d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-          const cfg  = AUDIT_COLOR[e.accion] ?? { bg: '#F1F5F9', color: '#475569', label: e.accion }
+          const d   = new Date(e.timestamp)
+          const cfg = AUDIT_CFG[e.accion] ?? { bg:'#F1F5F9', color:'#475569', border:'#CBD5E1', label: e.accion, icon:'fa-circle' }
+          const fecha = d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          const hora  = d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+          const seccion = DETALLE_LABEL[Number(e.idEntidad)] ?? e.descripcionEntidad
           return (
-            <div key={e.id} style={{
-              padding: '9px 12px', borderBottom: '1px solid rgba(10,21,48,0.06)',
-              display: 'flex', alignItems: 'flex-start', gap: 9,
-            }}>
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                marginTop: 6, background: cfg.color,
-              }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3, flexWrap: 'wrap' }}>
-                  <span style={{
-                    padding: '1px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700,
-                    background: cfg.bg, color: cfg.color, flexShrink: 0,
-                  }}>{cfg.label}</span>
-                  <span style={{
-                    fontSize: 11, color: '#475569', fontWeight: 600, fontFamily: 'var(--f-mono)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
-                    {e.loginUsuario}
-                  </span>
+            <div key={e.id} className="audit-entry" style={{ borderLeftColor: cfg.border }}>
+              {/* Action + section */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5, flexWrap: 'wrap' }}>
+                <span className="audit-badge" style={{ background: cfg.bg, color: cfg.color }}>
+                  <i className={`fa ${cfg.icon}`} style={{ fontSize: 9 }} aria-hidden="true" />
+                  {cfg.label}
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginBottom: 5, fontWeight: 500, lineHeight: 1.3 }}>
+                {seccion}
+              </div>
+
+              {/* Field changes — ALL of them, never truncated */}
+              {e.cambios && e.cambios.length > 0 && (
+                <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 7, padding: '6px 8px', marginBottom: 6 }}>
+                  <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.35)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 5 }}>
+                    {e.cambios.length} campo{e.cambios.length !== 1 ? 's' : ''} modificado{e.cambios.length !== 1 ? 's' : ''}
+                  </div>
+                  {e.cambios.map((c, i) => (
+                    <div key={i} className="audit-cambio">
+                      <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.5)', flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)', display: 'block', marginBottom: 2 }}>{c.etiqueta}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                          <span className="audit-val audit-val-ant" title={c.valorAnterior || '—'}>{c.valorAnterior || '—'}</span>
+                          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 10 }}>→</span>
+                          <span className="audit-val audit-val-nv" title={c.valorNuevo || '—'}>{c.valorNuevo || '—'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {e.cambios && e.cambios.length > 0 && (
-                  <div style={{ fontSize: 10.5, color: '#64748B', marginBottom: 2, lineHeight: 1.4 }}>
-                    {e.cambios.slice(0, 2).map(c =>
-                      `${c.etiqueta}: "${c.valorAnterior || '—'}" → "${c.valorNuevo || '—'}"`
-                    ).join(' · ')}
-                    {e.cambios.length > 2 && (
-                      <em style={{ color: '#94A3B8' }}> +{e.cambios.length - 2} más</em>
-                    )}
+              )}
+
+              {/* Motivo */}
+              {e.motivo && (
+                <div style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 6, padding: '4px 8px', marginBottom: 6, fontSize: 10.5, color: '#FDE68A', lineHeight: 1.4 }}>
+                  <i className="fa fa-comment-alt" style={{ marginRight: 5, fontSize: 9 }} aria-hidden="true" />
+                  {e.motivo}
+                </div>
+              )}
+
+              {/* Who + when */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.75)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {e.nombreUsuario}
                   </div>
-                )}
-                {e.motivo && (
-                  <div style={{
-                    fontSize: 10, color: '#92400E', background: '#FEF3C7',
-                    borderRadius: 4, padding: '1px 6px', display: 'inline-block', maxWidth: '100%',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 2,
-                  }} title={e.motivo}>
-                    <i className="fa fa-comment-alt" style={{ marginRight: 3, fontSize: 9 }} />{e.motivo}
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'var(--f-mono)' }}>
+                    {e.loginUsuario} · {e.cargo}
                   </div>
-                )}
-                <div style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'var(--f-mono)' }}>{hora}</div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,0.45)', fontFamily: 'var(--f-mono)', fontWeight: 600 }}>{hora}</div>
+                  <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.25)', fontFamily: 'var(--f-mono)' }}>{fecha}</div>
+                </div>
               </div>
             </div>
           )
         })}
       </div>
 
-      <div style={{
-        padding: '9px 14px', borderTop: '1px solid rgba(10,21,48,0.08)',
-        display: 'flex', justifyContent: 'center',
-      }}>
-        <a href="/admin/logs"
-          style={{ fontSize: 11.5, color: '#0A2D63', textDecoration: 'none', fontWeight: 600 }}>
+      <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+        <a href="/admin/logs" style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.45)', textDecoration: 'none', fontWeight: 600 }}
+          onMouseEnter={e => (e.currentTarget.style.color = '#F7C92E')}
+          onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.45)')}>
           Ver auditoría completa →
         </a>
+        <span style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.2)', fontFamily: 'var(--f-mono)' }}>
+          {totalStore} evento{totalStore !== 1 ? 's' : ''} en store · {relevant.length} en este BR
+        </span>
       </div>
+    </div>
+  )
+}
+
+// ── AuditExpandedPanel — tabla full-width para vista Consultar ───────────
+const AT_TH: React.CSSProperties = {
+  padding: '9px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700,
+  color: '#475569', textTransform: 'uppercase', letterSpacing: '.06em',
+  borderBottom: '2px solid #E2E8F0', whiteSpace: 'nowrap', background: '#F8FAFC',
+}
+const AT_TD: React.CSSProperties = {
+  padding: '9px 12px', verticalAlign: 'top', borderBottom: '1px solid #F1F5F9',
+}
+
+function AuditExpandedPanel({ brId }: { brId: string | number }) {
+  const allEntries = useAuditStore(s => s.entries)
+  const brIdNum    = Number(brId)
+  const [open, setOpen] = useState(true)
+
+  const relevant = [...allEntries]
+    .filter(e =>
+      Object.keys(AUDIT_CFG).includes(e.accion) &&
+      (ALL_DETALLE_IDS.includes(Number(e.idEntidad)) || Number(e.idEntidad) === brIdNum)
+    )
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+  return (
+    <div style={{ margin: '18px 0 0', border: '1.5px solid #E2E8F0', borderRadius: 14, overflow: 'hidden', background: '#fff' }}>
+      {/* Header */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen(o => !o)}
+        onKeyDown={e => e.key === 'Enter' && setOpen(o => !o)}
+        style={{ cursor: 'pointer', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 10, background: '#F8FAFC', borderBottom: open ? '1.5px solid #E2E8F0' : 'none' }}
+      >
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: '#0A2D63', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+          <i className="fa fa-history" style={{ color: '#fff', fontSize: 13 }} aria-hidden="true" />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: '#0A2D63', letterSpacing: '.01em' }}>
+            Trazabilidad GMP / Audit Trail
+          </div>
+          <div style={{ fontSize: 11, color: '#64748B', marginTop: 1 }}>
+            Registro completo de firmas, modificaciones y eventos GMP de este Batch Record
+          </div>
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 800, background: relevant.length > 0 ? '#0A2D63' : '#E2E8F0', color: relevant.length > 0 ? '#fff' : '#94A3B8', padding: '2px 12px', borderRadius: 20 }}>
+          {relevant.length}
+        </span>
+        <i className={`fa fa-chevron-${open ? 'up' : 'down'}`} style={{ color: '#94A3B8', fontSize: 12, marginLeft: 4 }} aria-hidden="true" />
+      </div>
+
+      {open && (
+        relevant.length === 0 ? (
+          <div style={{ padding: '44px 20px', textAlign: 'center' }}>
+            <i className="fa fa-history" style={{ fontSize: 34, color: '#E2E8F0', display: 'block', marginBottom: 14 }} aria-hidden="true" />
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#94A3B8', marginBottom: 5 }}>Sin eventos de auditoría</div>
+            <div style={{ fontSize: 11.5, color: '#CBD5E1', lineHeight: 1.6 }}>
+              Realiza acciones en el BR (firmar, modificar datos, cerrar procesos)<br />para generar entradas de auditoría.
+            </div>
+          </div>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th style={AT_TH}>Fecha / Hora</th>
+                  <th style={AT_TH}>Acción</th>
+                  <th style={AT_TH}>Sección / Formulario</th>
+                  <th style={AT_TH}>Usuario</th>
+                  <th style={AT_TH}>Cargo</th>
+                  <th style={{ ...AT_TH, width: '36%' }}>Detalle de cambios / Motivo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {relevant.map((e, i) => {
+                  const cfg    = AUDIT_CFG[e.accion] ?? { bg:'#F1F5F9', color:'#475569', border:'#CBD5E1', label: e.accion, icon:'fa-circle' }
+                  const d      = new Date(e.timestamp)
+                  const fecha  = d.toLocaleDateString('es-CO', { day:'2-digit', month:'2-digit', year:'numeric' })
+                  const hora   = d.toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit', second:'2-digit' })
+                  const seccion = DETALLE_LABEL[Number(e.idEntidad)] ?? e.descripcionEntidad
+                  return (
+                    <tr key={e.id} style={{ background: i % 2 === 0 ? '#fff' : '#FAFAFA' }}>
+                      <td style={AT_TD}>
+                        <div style={{ fontFamily: 'var(--f-mono)', fontSize: 11.5, fontWeight: 700, color: '#374151' }}>{hora}</div>
+                        <div style={{ fontFamily: 'var(--f-mono)', fontSize: 10, color: '#94A3B8', marginTop: 2 }}>{fecha}</div>
+                      </td>
+                      <td style={AT_TD}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 20, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontWeight: 700, fontSize: 10.5, whiteSpace: 'nowrap' }}>
+                          <i className={`fa ${cfg.icon}`} style={{ fontSize: 9 }} aria-hidden="true" />
+                          {cfg.label}
+                        </span>
+                      </td>
+                      <td style={AT_TD}>
+                        <div style={{ fontSize: 11.5, color: '#374151', fontWeight: 500, maxWidth: 180 }}>{seccion}</div>
+                      </td>
+                      <td style={AT_TD}>
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: '#111827' }}>{e.nombreUsuario}</div>
+                        <div style={{ fontSize: 10, color: '#94A3B8', fontFamily: 'var(--f-mono)', marginTop: 2 }}>{e.loginUsuario}</div>
+                      </td>
+                      <td style={AT_TD}>
+                        <div style={{ fontSize: 11, color: '#64748B', maxWidth: 140 }}>{e.cargo}</div>
+                      </td>
+                      <td style={AT_TD}>
+                        {e.cambios && e.cambios.length > 0 ? (
+                          <div>
+                            {e.cambios.map((c, ci) => (
+                              <div key={ci} style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3, fontSize: 10.5, flexWrap: 'wrap' }}>
+                                <span style={{ color: '#64748B', fontWeight: 600, flexShrink: 0 }}>{c.etiqueta}:</span>
+                                <span style={{ background: '#FEE2E2', color: '#991B1B', padding: '0 5px', borderRadius: 3, fontFamily: 'var(--f-mono)', fontSize: 10 }}>
+                                  {c.valorAnterior || '—'}
+                                </span>
+                                <span style={{ color: '#CBD5E1', fontSize: 10 }}>→</span>
+                                <span style={{ background: '#D1FAE5', color: '#065F46', padding: '0 5px', borderRadius: 3, fontFamily: 'var(--f-mono)', fontSize: 10 }}>
+                                  {c.valorNuevo || '—'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : e.motivo ? (
+                          <div style={{ fontSize: 11, color: '#92400E', background: '#FEF3C7', padding: '3px 9px', borderRadius: 5, border: '1px solid #FDE68A', display: 'inline-block' }}>
+                            <i className="fa fa-comment-alt" style={{ marginRight: 5, fontSize: 9 }} aria-hidden="true" />
+                            {e.motivo}
+                          </div>
+                        ) : (
+                          <span style={{ color: '#E2E8F0', fontSize: 11 }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
     </div>
   )
 }
@@ -2022,20 +2622,43 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
   const navigate = useNavigate()
   const { registrar } = useAudit()
   const authUser = useAuthStore(s => s.user)
+  const allAuditEntries = useAuditStore(s => s.entries)
   const [preLlenado, setPreLlenado] = useState<PreLlenadoBR | null>(null)
   const [procesoActivo, setProcesoActivo] = useState(mockProcesos[0]?.id ?? 0)
 
   useEffect(() => {
     if (id) formulaControlApi.getPreLlenado(Number(id)).then(setPreLlenado)
   }, [id])
+
+  // Register an access event every time a batch record is opened in edit mode.
+  // This fires immediately on mount so the audit panel shows at least one entry
+  // and proves the entire store → display chain is working.
+  const accessRegistered = useRef(false)
+  useEffect(() => {
+    if (readonly || !id || accessRegistered.current) return
+    accessRegistered.current = true
+    registrar({
+      entidad: 'BatchRecord',
+      idEntidad: Number(id),
+      descripcionEntidad: `Batch Record #${id}`,
+      accion: 'CREAR',
+      modulo: 'batch-record',
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, readonly])
   const [firmaModal, setFirmaModal] = useState<{ tipo: 'seccion'|'cierre'; firmaKey: string; texto: string; grupo: string } | null>(null)
   const [firmados, setFirmados] = useState<FirmaMap>(() => {
     try {
       const saved = localStorage.getItem(`br_firmados_${id}`)
-      return saved ? (JSON.parse(saved) as FirmaMap) : buildInitialFirmados()
-    } catch { return buildInitialFirmados() }
+      if (saved) return JSON.parse(saved) as FirmaMap
+      const brNum = Number(id)
+      return (mockFirmadosBR[brNum] ?? {}) as FirmaMap
+    } catch {
+      const brNum = Number(id)
+      return (mockFirmadosBR[brNum] ?? {}) as FirmaMap
+    }
   })
-  const [showAudit, setShowAudit] = useState(false)
+  const [showAudit, setShowAudit] = useState(true)
   const [cerradosProcesos, setCerradosProcesos] = useState<Set<number>>(() => {
     try {
       const saved = localStorage.getItem(`br_cerrados_${id}`)
@@ -2055,199 +2678,578 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
     return fc.length > 0 && fc.every(f => !!firmados[`cie:${d.id}:${f.idFirma}`])
   })
 
+  // Overall progress — based on cierre signatures across all detalles
+  const totalFirmasCierre = DETALLE_STRUCT.reduce((n, d) => n + getFirmasDeEstrategia(d.idEstrategiaFirma).length, 0)
+  const doneFirmasCierre  = DETALLE_STRUCT.reduce((n, d) =>
+    n + getFirmasDeEstrategia(d.idEstrategiaFirma).filter(f => !!firmados[`cie:${d.id}:${f.idFirma}`]).length, 0)
+  const overallPct = totalFirmasCierre > 0 ? Math.round((doneFirmasCierre / totalFirmasCierre) * 100) : 0
+
+  // Status badge config
+  const brRec = mockBatchRecords.find(b => b.idBatchRecord === Number(id))
+  const ESTADO_BADGE = {
+    1: { label: 'En Tratamiento', bg: 'rgba(59,130,246,0.22)',  color: '#93C5FD' },
+    2: { label: 'Finalizado',     bg: 'rgba(16,185,129,0.22)',  color: '#6EE7B7' },
+    3: { label: 'Cancelado',      bg: 'rgba(239,68,68,0.22)',   color: '#FCA5A5' },
+    4: { label: 'Liberado',       bg: 'rgba(167,139,250,0.22)', color: '#C4B5FD' },
+  } as const
+  const estadoBadge = ESTADO_BADGE[(brRec?.idEstado ?? 1) as keyof typeof ESTADO_BADGE] ?? ESTADO_BADGE[1]
+
   const handlePrint = () => {
-    const win = window.open('', '_blank', 'width=960,height=720')
+    const win = window.open('', '_blank', 'width=1024,height=800')
     if (!win) { alert('Habilita ventanas emergentes en el navegador para imprimir'); return }
 
     const cab = buildCabeceraItems(preLlenado)
     const now = new Date()
     const printDate = now.toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })
     const printTime = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+    const brCode = `BR-${id ?? '—'}`
+    const producto = preLlenado?.descripcionMaterial ?? '—'
+    const userName = authUser ? `${authUser.nombres} ${authUser.apellidos}` : '—'
 
-    // Collect all saved form data from localStorage for each detalle
     const allFormData: Record<number, Record<string, unknown>> = {}
-    DETALLE_STRUCT.forEach(d => {
-      try {
-        const raw = localStorage.getItem(`br_data_${id}_${d.id}`)
-        allFormData[d.id] = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
-      } catch { allFormData[d.id] = {} }
+    DETALLE_STRUCT.forEach(det => {
+      const schema = getDetalleById(det.id)?.jsonSchema ?? ''
+      const base: Record<string, unknown> = {
+        ...(preLlenado ? extractOpMappings(schema, preLlenado as unknown as Record<string, unknown>) : {}),
+        ...(PREFILLED[det.id] ?? {}),
+        ...buildDetalleInitialValues(det.id, preLlenado),
+        ...buildMockManualData(det.id, preLlenado, Number(id)),
+      }
+      // Overlay user-entered data, but only non-empty values so mock fills the blanks
+      const userSnap = formDataMapRef.current[det.id]
+      if (userSnap) {
+        for (const [k, v] of Object.entries(userSnap)) {
+          if (Array.isArray(v)) {
+            // For datagrid: prefer user rows only if they contain actual content
+            const hasContent = (v as Record<string, unknown>[]).some(row =>
+              Object.values(row).some(rv => rv !== null && rv !== undefined && rv !== '' && rv !== false)
+            )
+            if (hasContent) base[k] = v
+          } else if (v !== null && v !== undefined && v !== '') {
+            base[k] = v
+          }
+        }
+      }
+      allFormData[det.id] = base
     })
 
-    const procsSections = mockProcesos.map(proc => {
+    const esc = (s: string) => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+
+    const renderScalarValue = (v: unknown): string => {
+      if (v === null || v === undefined || v === '') return '<span class="empty">—</span>'
+      if (typeof v === 'boolean') return v ? 'Sí' : 'No'
+      return esc(String(v))
+    }
+
+    const renderDatagrid = (rows: Record<string, unknown>[], labels: Record<string, string>): string => {
+      const valid = rows.filter(r => r && typeof r === 'object')
+      if (!valid.length) return '<span class="empty">Sin datos</span>'
+      const cols = Object.keys(valid[0]).filter(k => !k.startsWith('btn'))
+      const thead = `<thead><tr>${cols.map(k => `<th>${esc(labels[k] ?? k)}</th>`).join('')}</tr></thead>`
+      const tbody = `<tbody>${valid.map(row =>
+        `<tr>${cols.map(k => {
+          const v = row[k]
+          return `<td>${v !== null && v !== undefined && v !== '' ? esc(String(v)) : '<span class="empty">—</span>'}</td>`
+        }).join('')}</tr>`
+      ).join('')}</tbody>`
+      return `<div class="dg-wrap"><table class="dg-tbl">${thead}${tbody}</table></div>`
+    }
+
+    const renderPesoChart = (data: Record<string, unknown>): string => {
+      const minV = parseFloat(String(data.peso_min_spec ?? ''))
+      const optV = parseFloat(String(data.peso_opt_spec ?? ''))
+      const maxV = parseFloat(String(data.peso_max_spec ?? ''))
+      const specsOk = !isNaN(minV) && !isNaN(optV) && !isNaN(maxV) && minV < optV && optV < maxV
+      const PESO_N = 10
+      const pesosArr = Array.from({ length: PESO_N }, (_, i) => parseFloat(String(data[`peso_ctrl_${i + 1}`] ?? '')))
+      const valid = pesosArr.filter(v => !isNaN(v))
+      const promedio = valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : NaN
+
+      const W = 700, H = 220
+      const PL = 62, PR = 24, PT = 18, PB = 36
+      const innerW = W - PL - PR, innerH = H - PT - PB
+      const chartYMin = specsOk ? minV - (maxV - minV) * 0.3 : 490
+      const chartYMax = specsOk ? maxV + (maxV - minV) * 0.3 : 540
+      const toY = (v: number) => PT + (1 - (v - chartYMin) / (chartYMax - chartYMin)) * innerH
+      const toX = (i: number) => PL + (i / (PESO_N - 1)) * innerW
+
+      const gridYVals = Array.from({ length: 6 }, (_, i) => chartYMin + (i / 5) * (chartYMax - chartYMin))
+      const pts = pesosArr.map((v, i) => (!isNaN(v) ? { x: toX(i), y: toY(v), v, i } : null))
+      const validPts = pts.filter((p): p is NonNullable<typeof p> => p !== null)
+      const polyline = validPts.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' ')
+      const stateOf = (v: number) => !specsOk ? null : v < minV || v > maxV ? 'NC' : v < optV - 1 || v > optV + 1 ? 'AC' : 'OK'
+      const stColor = (st: string | null) => st === 'NC' ? '#DC2626' : st === 'AC' ? '#D97706' : st === 'OK' ? '#10B981' : '#94A3B8'
+
+      const tableRows = pesosArr.map((pv, i) => {
+        const st = isNaN(pv) ? null : stateOf(pv)
+        const c = stColor(st)
+        const bgRow = i % 2 === 0 ? '#fff' : '#F8FAFC'
+        return `<tr style="background:${bgRow}">
+          <td style="padding:4px 10px;text-align:center;color:#475569;font-weight:600;font-family:monospace;border-bottom:1px solid #F1F5F9">${i + 1}</td>
+          <td style="padding:4px 10px;text-align:center;font-family:monospace;font-weight:700;color:#0A1530;border-bottom:1px solid #F1F5F9">${isNaN(pv) ? '—' : pv.toFixed(2)}</td>
+          ${specsOk ? `<td style="padding:4px 10px;text-align:center;border-bottom:1px solid #F1F5F9"><span style="font-size:10px;font-weight:800;color:${c}">${st ?? ''}</span></td>` : ''}
+        </tr>`
+      }).join('')
+
+      const refLinesHTML = specsOk ? [
+        { v: maxV, label: `MÁX ${maxV}g`, color: '#DC2626', dash: '5,4' },
+        { v: optV, label: `ÓPT ${optV}g`, color: '#1D4ED8', dash: '' },
+        { v: minV, label: `MÍN ${minV}g`, color: '#DC2626', dash: '5,4' },
+      ].map(({ v, label, color, dash }) => {
+        const y = toY(v).toFixed(2)
+        return `<line x1="${PL}" y1="${y}" x2="${W - PR}" y2="${y}" stroke="${color}" stroke-width="1.5" ${dash ? `stroke-dasharray="${dash}"` : ''}/>`
+          + `<text x="${W - PR + 3}" y="${(parseFloat(y) + 4).toFixed(2)}" font-size="8.5" fill="${color}" font-family="monospace" font-weight="bold">${label}</text>`
+      }).join('') : ''
+
+      const gridLinesY = gridYVals.map((v, i) =>
+        `<line key="${i}" x1="${PL}" y1="${toY(v).toFixed(2)}" x2="${W - PR}" y2="${toY(v).toFixed(2)}" stroke="#F1F5F9" stroke-width="1"/>`
+      ).join('')
+      const gridLabelsY = gridYVals.map((v, i) =>
+        `<text x="${PL - 6}" y="${(toY(v) + 4).toFixed(2)}" text-anchor="end" font-size="9" fill="#94A3B8" font-family="monospace">${v.toFixed(1)}</text>`
+      ).join('')
+      const gridLinesX = Array.from({ length: PESO_N }, (_, i) =>
+        `<line x1="${toX(i).toFixed(2)}" y1="${PT}" x2="${toX(i).toFixed(2)}" y2="${H - PB}" stroke="#F1F5F9" stroke-width="1"/>`
+      ).join('')
+      const xLabels = Array.from({ length: PESO_N }, (_, i) =>
+        `<text x="${toX(i).toFixed(2)}" y="${H - PB + 14}" text-anchor="middle" font-size="9" fill="#64748B" font-family="monospace">${i + 1}</text>`
+      ).join('')
+      const dotsHTML = pts.map((p, i) => !p ? '' :
+        `<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="5" fill="#0A2D63" stroke="#fff" stroke-width="2"/>`
+        + (specsOk && (p.v < minV || p.v > maxV) ? `<circle cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="7" fill="none" stroke="#DC2626" stroke-width="1.5"/>` : '')
+      ).join('')
+
+      return `<div style="margin:12px 0 0;padding:14px 16px 16px;background:#F8FAFC;border-radius:12px;border:1.5px solid #E2E8F0;page-break-inside:avoid">
+        <div style="font-size:11px;font-weight:800;color:#0A2D63;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">Control de Pesos — Envasado</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+          <div style="min-width:220px">
+            <table style="border-collapse:collapse;font-size:12px;width:100%">
+              <thead>
+                <tr style="background:#0A2D63">
+                  <th style="padding:5px 10px;color:#fff;font-weight:700;font-size:11px;text-align:center">Muestra</th>
+                  <th style="padding:5px 10px;color:#fff;font-weight:700;font-size:11px;text-align:center">Peso (g)</th>
+                  ${specsOk ? '<th style="padding:5px 10px;color:#fff;font-weight:700;font-size:11px;text-align:center">Estado</th>' : ''}
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+                <tr style="background:#EFF6FF;border-top:2px solid #BFDBFE">
+                  <td style="padding:5px 10px;font-weight:800;font-size:11.5px;color:#1E40AF;text-align:center">PROM.</td>
+                  <td style="padding:5px 10px;font-family:monospace;font-weight:800;font-size:13px;color:#1E40AF;text-align:center">${!isNaN(promedio) ? promedio.toFixed(2) : '—'}</td>
+                  ${specsOk && !isNaN(promedio) ? `<td style="padding:5px 10px;text-align:center"><span style="font-size:10px;font-weight:800;color:${stColor(stateOf(promedio))}">${stateOf(promedio)}</span></td>` : (specsOk ? '<td></td>' : '')}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="flex:1;min-width:340px;overflow-x:auto">
+            <svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;display:block;background:#fff;border:1px solid #E2E8F0;border-radius:8px">
+              ${gridLinesY}${gridLinesX}${gridLabelsY}${xLabels}
+              <text x="${W / 2}" y="${H - 2}" text-anchor="middle" font-size="9" fill="#94A3B8" font-family="sans-serif">Muestra</text>
+              <line x1="${PL}" y1="${PT}" x2="${PL}" y2="${H - PB}" stroke="#CBD5E1" stroke-width="1.5"/>
+              <line x1="${PL}" y1="${H - PB}" x2="${W - PR}" y2="${H - PB}" stroke="#CBD5E1" stroke-width="1.5"/>
+              ${refLinesHTML}
+              ${validPts.length >= 2 ? `<polyline points="${polyline}" fill="none" stroke="#0A2D63" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` : ''}
+              ${dotsHTML}
+              ${validPts.length === 0 ? `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="12" fill="#CBD5E1" font-family="sans-serif">Sin datos</text>` : ''}
+              ${specsOk ? `<g>
+                <circle cx="${PL + 10}" cy="${PT - 6}" r="3" fill="#0A2D63"/>
+                <text x="${PL + 17}" y="${PT - 3}" font-size="8.5" fill="#0A2D63" font-family="sans-serif">Peso medido</text>
+                <line x1="${PL + 90}" y1="${PT - 6}" x2="${PL + 100}" y2="${PT - 6}" stroke="#DC2626" stroke-width="1.5" stroke-dasharray="4,3"/>
+                <text x="${PL + 104}" y="${PT - 3}" font-size="8.5" fill="#DC2626" font-family="sans-serif">Límites</text>
+                <line x1="${PL + 148}" y1="${PT - 6}" x2="${PL + 158}" y2="${PT - 6}" stroke="#1D4ED8" stroke-width="1.5"/>
+                <text x="${PL + 162}" y="${PT - 3}" font-size="8.5" fill="#1D4ED8" font-family="sans-serif">Óptimo</text>
+              </g>` : ''}
+            </svg>
+          </div>
+        </div>
+      </div>`
+    }
+
+    const renderFormData = (detalleId: number, labels: Record<string, string>): string => {
+      const data = allFormData[detalleId] ?? {}
+      const entries = Object.entries(data).filter(([k, v]) =>
+        !k.startsWith('_') && !k.startsWith('btn') && !k.startsWith('peso_') &&
+        v !== '' && v !== null && v !== undefined && v !== false
+      )
+      if (!entries.length) return ''
+      const scalars = entries.filter(([, v]) => !Array.isArray(v))
+      const dgs = entries.filter(([, v]) => Array.isArray(v))
+      const scalarHTML = scalars.length > 0
+        ? `<table class="fields-tbl"><tbody>${
+            scalars.map(([k, v]) => `<tr><td class="fl">${esc(labels[k] ?? k)}</td><td class="fv">${renderScalarValue(v)}</td></tr>`).join('')
+          }</tbody></table>`
+        : ''
+      const dgHTML = dgs.map(([k, v]) =>
+        `<div class="dg-section"><div class="dg-title">${esc(labels[k] ?? k)}</div>${renderDatagrid(v as Record<string, unknown>[], labels)}</div>`
+      ).join('')
+      return `<div class="det-content">${scalarHTML}${dgHTML}</div>`
+    }
+
+    const totalFirmas = DETALLE_STRUCT.reduce((n, d) => n + getFirmasDeEstrategia(d.idEstrategiaFirma).length, 0)
+    const doneFirmas  = DETALLE_STRUCT.reduce((n, d) =>
+      n + getFirmasDeEstrategia(d.idEstrategiaFirma).filter(f => !!firmados[`cie:${d.id}:${f.idFirma}`]).length, 0)
+
+    const procsSections = mockProcesos.map((proc, pi) => {
       const dets = DETALLE_STRUCT.filter(d => d.idProceso === proc.id)
       const detsHTML = dets.map(det => {
+        const schema = getDetalleById(det.id)?.jsonSchema ?? ''
+        const labels = extractFieldLabels(schema)
         const fc = getFirmasDeEstrategia(det.idEstrategiaFirma)
-        const rows = fc.map(f => {
+        const allSigned = fc.length > 0 && fc.every(f => !!firmados[`cie:${det.id}:${f.idFirma}`])
+        const detCode = `ET${pi + 1}-F${det.orden}`
+        const sigCards = fc.map(f => {
           const info = firmados[`cie:${det.id}:${f.idFirma}`]
           return info
-            ? `<tr>
-                <td class="role">${f.texto}</td>
-                <td class="name">${info.nombre}</td>
-                <td>${info.cargo}</td>
-                <td class="mono">${info.fecha}</td>
-                <td class="mono">${info.hora}</td>
-               </tr>`
-            : `<tr class="pend"><td class="role">${f.texto}</td><td colspan="4" class="pend-cell">—</td></tr>`
+            ? `<div class="sig-card signed">
+                <div class="sig-card-top"><span class="sig-status">✓ Firmado</span><span class="sig-icon">✍</span></div>
+                <div class="sig-card-body">
+                  <div class="sig-role">${esc(f.texto)}</div>
+                  <div class="sig-name">${esc(info.nombre)}</div>
+                  <div class="sig-cargo">${esc(info.cargo)}</div>
+                  <div class="sig-datetime">${esc(info.fecha)} · ${esc(info.hora)}</div>
+                </div>
+              </div>`
+            : `<div class="sig-card pending">
+                <div class="sig-card-top"><span class="sig-status">Pendiente</span><span class="sig-icon">○</span></div>
+                <div class="sig-card-body">
+                  <div class="sig-role">${esc(f.texto)}</div>
+                  <div class="sig-name">Sin firmar</div>
+                  <div class="sig-cargo">—</div>
+                  <div class="sig-datetime">—</div>
+                </div>
+              </div>`
         }).join('')
-        // Render captured form data (exclude internal underscore keys and empty values)
-        const formEntries = Object.entries(allFormData[det.id] ?? {})
-          .filter(([k, v]) => !k.startsWith('_') && v !== '' && v !== null && v !== undefined)
-        const dataHTML = formEntries.length > 0
-          ? `<table class="data-tbl"><thead><tr><th>Campo</th><th>Valor</th></tr></thead><tbody>${
-              formEntries.map(([k, v]) =>
-                `<tr><td class="data-key">${k.replace(/_/g, ' ')}</td><td class="data-val">${String(v)}</td></tr>`
-              ).join('')
-            }</tbody></table>`
-          : ''
-        return `<div class="det">
-          <div class="det-title"><span class="det-num">${det.orden}</span>${det.descripcion}</div>
-          ${dataHTML}
-          <table class="sig-tbl"><thead><tr>
-            <th>Rol</th><th>Firmante</th><th>Cargo</th><th>Fecha</th><th>Hora</th>
-          </tr></thead><tbody>${rows}</tbody></table>
+        return `<div class="det-block">
+          <div class="det-hdr">
+            <div class="det-step">${det.orden}</div>
+            <div class="det-name">${esc(det.descripcion)}</div>
+            <div class="det-badge">${detCode}</div>
+            <div class="det-status ${allSigned ? 'ok' : 'pend'}">${allSigned ? '✓ Conforme' : '⏳ Pendiente'}</div>
+          </div>
+          ${renderFormData(det.id, labels)}
+          ${det.id === 302 ? renderPesoChart(allFormData[302] ?? {}) : ''}
+          <div class="sig-block">
+            <div class="sig-block-title">Firmas de Aprobación — ${detCode}</div>
+            <div class="sig-cards">${sigCards}</div>
+          </div>
         </div>`
       }).join('')
-      return `<div class="proc">
-        <div class="proc-hdr">${proc.descripcion}</div>
-        ${detsHTML}
+      return `<div class="etapa-block${pi > 0 ? ' page-break' : ''}">
+        <div class="etapa-hdr">
+          <span class="etapa-num">Etapa ${pi + 1}</span>
+          <span class="etapa-nombre">${esc(proc.descripcion)}</span>
+        </div>
+        <div class="etapa-body">${detsHTML}</div>
       </div>`
     }).join('')
 
-    const cabHTML = cab.map(it =>
-      `<div class="cab-item"><div class="cab-lbl">${it.label}</div><div class="cab-val">${it.value}</div></div>`
+    const loteGridHTML = cab.map(it =>
+      `<div class="lote-cell"><div class="lc-lbl">${esc(it.label)}</div><div class="lc-val">${esc(it.value)}</div></div>`
     ).join('')
+
+    const stampHTML = brFinalizado
+      ? `<div class="stamp approved">
+          <div class="stamp-icon">✓</div>
+          <div class="stamp-body">
+            <div class="stamp-title">Batch Record Aprobado</div>
+            <div class="stamp-sub">Todas las etapas completadas y firmadas conforme a Buenas Prácticas de Manufactura</div>
+            <div class="stamp-date">Impreso: ${printDate} · ${printTime}</div>
+          </div>
+        </div>`
+      : `<div class="stamp pending">
+          <div class="stamp-icon pend">⏳</div>
+          <div class="stamp-body">
+            <div class="stamp-title">En Proceso — Pendiente de Aprobación</div>
+            <div class="stamp-sub">${doneFirmas} de ${totalFirmas} firmas completadas</div>
+            <div class="stamp-date">Impreso: ${printDate} · ${printTime}</div>
+          </div>
+        </div>`
+
+    const etapaProgressHTML = mockProcesos.map((proc, pi) => {
+      const dets = DETALLE_STRUCT.filter(d => d.idProceso === proc.id)
+      const total = dets.reduce((n, d) => n + getFirmasDeEstrategia(d.idEstrategiaFirma).length, 0)
+      const done  = dets.reduce((n, d) =>
+        n + getFirmasDeEstrategia(d.idEstrategiaFirma).filter(f => !!firmados[`cie:${d.id}:${f.idFirma}`]).length, 0)
+      const isDone = total > 0 && done === total
+      const shortName = proc.descripcion.replace(/^Etapa \d+ — /, '')
+      return `<div class="ep-item ${isDone ? 'done' : 'pend'}">
+        <div class="ep-num">${pi + 1}</div>
+        <div class="ep-body">
+          <div class="ep-name">${esc(shortName)}</div>
+          <div class="ep-sigs">${done} de ${total} firmas</div>
+        </div>
+        ${isDone ? '<div class="ep-check">✓</div>' : ''}
+      </div>`
+    }).join('')
+
+    // ── Desviaciones para este BR ──────────────────────────────────────────
+    const brDesviaciones = mockDesviaciones.filter(d => d.idBatchRecord === Number(id))
+    const desvHTML = brDesviaciones.length === 0
+      ? '<div class="desv-empty">Sin desviaciones registradas para este Batch Record.</div>'
+      : brDesviaciones.map(d => {
+          const fh = new Date(d.fechaHora)
+          const fechaRep = fh.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          const horaRep  = fh.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+          return `<div class="desv-card">
+            <div class="desv-hdr">
+              <span class="desv-badge ${d.estado === 'abierta' ? 'abierta' : 'cerrada'}">${d.estado === 'abierta' ? 'Abierta' : 'Cerrada'}</span>
+              <span class="desv-campo">${esc(d.labelCampo)}</span>
+              <span class="desv-code">${esc(d.detalleCode)}</span>
+            </div>
+            <div class="desv-body">
+              <div class="desv-valor">Valor ingresado: <strong>${esc(d.valorIngresado)}</strong> &nbsp;·&nbsp; ${esc(d.limiteInfo)}</div>
+              <div class="desv-desc">${esc(d.descripcion)}</div>
+              <div class="desv-meta">Reportado por ${esc(d.usuario)} (${esc(d.cargo)}) · ${fechaRep} ${horaRep}</div>
+              ${d.observacionCierre ? `<div class="desv-cierre">
+                <div class="desv-cierre-title">Cierre · ${esc(d.usuarioCierre ?? '')}${d.fechaCierre ? ' · ' + new Date(d.fechaCierre).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}</div>
+                <div class="desv-cierre-text">${esc(d.observacionCierre)}</div>
+              </div>` : ''}
+            </div>
+          </div>`
+        }).join('')
+
+    // ── Audit trail ────────────────────────────────────────────────────────
+    const relevantAudit = [...allAuditEntries]
+      .filter(e => Object.keys(AUDIT_CFG).includes(e.accion) &&
+        (ALL_DETALLE_IDS.includes(Number(e.idEntidad)) || Number(e.idEntidad) === Number(id)))
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+
+    const auditHTML = relevantAudit.length === 0
+      ? '<div class="at-empty">Sin eventos de auditoría registrados. Interactúa con el BR para generar entradas.</div>'
+      : `<table class="audit-tbl">
+          <thead><tr><th>Fecha / Hora</th><th>Acción</th><th>Sección</th><th>Usuario</th><th>Detalle</th></tr></thead>
+          <tbody>${relevantAudit.map(e => {
+            const cfg = AUDIT_CFG[e.accion] ?? { bg: '#F1F5F9', color: '#475569', label: e.accion }
+            const d   = new Date(e.timestamp)
+            const fec = d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            const hor = d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            const sec = DETALLE_LABEL[Number(e.idEntidad)] ?? e.descripcionEntidad
+            const det = e.cambios?.length
+              ? e.cambios.slice(0, 3).map(c => `${esc(c.etiqueta)}: ${esc(c.valorAnterior || '—')} → ${esc(c.valorNuevo || '—')}`).join('<br>')
+              : (e.motivo ? esc(e.motivo) : '—')
+            return `<tr>
+              <td style="white-space:nowrap;font-family:monospace;font-size:7.5pt">${fec}<br>${hor}</td>
+              <td><span class="at-badge" style="background:${cfg.bg};color:${cfg.color}">${esc(cfg.label)}</span></td>
+              <td style="font-size:7.5pt;color:#475569;max-width:140px">${esc(sec)}</td>
+              <td style="font-size:7.5pt;font-weight:700">${esc(e.nombreUsuario ?? '—')}<br><span style="font-size:6.5pt;color:#94A3B8;font-weight:400;font-family:monospace">${esc(e.loginUsuario ?? '')}</span></td>
+              <td style="font-size:7pt;color:#475569;max-width:180px">${det}</td>
+            </tr>`
+          }).join('')}</tbody>
+        </table>`
 
     win.document.write(`<!DOCTYPE html><html lang="es"><head>
 <meta charset="UTF-8">
-<title>Batch Record BR-${id ?? '—'}</title>
+<title>${brCode} — Registro de Fabricación</title>
 <style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',Arial,sans-serif;font-size:9.5pt;color:#1a1a2e;background:#fff;padding:0}
-  @page{size:A4;margin:18mm 16mm 18mm 16mm}
-  @media print{.no-print{display:none!important}}
-
-  /* ── Header ── */
-  .br-header{background:#0A2D63;color:#fff;padding:14px 20px;display:flex;align-items:center;gap:16px;margin-bottom:0}
-  .br-logo{font-size:18pt;font-weight:900;letter-spacing:-0.02em;color:#F7C92E}
-  .br-logo span{color:#fff;font-weight:300}
-  .br-title{flex:1}
-  .br-title h1{font-size:12pt;font-weight:700;letter-spacing:.04em;text-transform:uppercase;margin-bottom:2px}
-  .br-title p{font-size:8.5pt;color:rgba(255,255,255,.7)}
-  .br-num{font-size:14pt;font-weight:900;font-family:monospace;background:rgba(247,201,46,.18);
-    border:1.5px solid rgba(247,201,46,.35);color:#F7C92E;padding:4px 14px;border-radius:6px}
-
-  /* ── Cabecera ── */
-  .cab-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1.5px solid #CBD5E1;border-radius:0}
-  .cab-item{padding:7px 12px;border-right:1px solid #E2E8F0;border-bottom:1px solid #E2E8F0}
-  .cab-item:nth-child(3n){border-right:none}
-  .cab-item:nth-last-child(-n+3){border-bottom:none}
-  .cab-lbl{font-size:7.5pt;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px}
-  .cab-val{font-size:10pt;font-weight:700;color:#0A1530}
-  .section-hdr{background:#F6F4EE;border-left:4px solid #0A2D63;padding:5px 12px;
-    font-size:8pt;font-weight:800;text-transform:uppercase;letter-spacing:.07em;
-    color:#0A2D63;margin:14px 0 0}
-
-  /* ── Procesos / Detalles ── */
-  .proc{margin-bottom:10px;page-break-inside:avoid}
-  .proc-hdr{background:#0A2D63;color:#fff;padding:8px 14px;font-size:9.5pt;font-weight:700;
-    letter-spacing:.02em;margin-bottom:0}
-  .det{border:1px solid #E2E8F0;border-top:none;padding:8px 12px;page-break-inside:avoid}
-  .det-title{font-size:9pt;font-weight:700;color:#1E3A8A;margin-bottom:6px;
-    display:flex;align-items:center;gap:8px}
-  .det-num{background:#0A2D63;color:#fff;width:18px;height:18px;border-radius:50%;
-    display:inline-flex;align-items:center;justify-content:center;
-    font-size:8pt;font-weight:700;flex-shrink:0}
-
-  /* ── Firma table ── */
-  .sig-tbl{width:100%;border-collapse:collapse;font-size:8.5pt}
-  .sig-tbl thead tr{background:#F1F5F9}
-  .sig-tbl th{padding:4px 8px;text-align:left;font-size:7.5pt;font-weight:700;
-    color:#475569;text-transform:uppercase;letter-spacing:.05em;border-bottom:1.5px solid #CBD5E1}
-  .sig-tbl td{padding:5px 8px;border-bottom:1px solid #F1F5F9;vertical-align:middle}
-  .sig-tbl tr:last-child td{border-bottom:none}
-  .role{color:#374151;font-weight:600;max-width:180px}
-  .name{font-weight:700;color:#0A1530}
-  .mono{font-family:monospace;font-size:8pt;color:#475569}
-  .pend td{color:#94A3B8;font-style:italic}
-  .pend-cell{color:#CBD5E1}
-  .data-tbl{width:100%;border-collapse:collapse;font-size:8pt;margin-bottom:6px;background:#FAFAFA;border-radius:4px}
-  .data-tbl thead tr{background:#EFF6FF}
-  .data-tbl th{padding:3px 8px;text-align:left;font-size:7pt;font-weight:700;color:#1E40AF;text-transform:uppercase;letter-spacing:.05em}
-  .data-tbl td{padding:4px 8px;border-bottom:1px solid #F1F5F9;vertical-align:middle;font-size:8pt}
-  .data-key{color:#475569;font-weight:600;white-space:nowrap;width:40%}
-  .data-val{color:#0F172A;font-family:monospace}
-
-  /* ── Approval stamp ── */
-  .stamp{margin:20px auto 0;max-width:420px;border:3px solid #2D5D4A;border-radius:12px;
-    padding:18px 24px;text-align:center;page-break-inside:avoid}
-  .stamp-icon{font-size:30pt;color:#2D5D4A;margin-bottom:6px}
-  .stamp-title{font-size:16pt;font-weight:900;color:#2D5D4A;text-transform:uppercase;
-    letter-spacing:.08em;margin-bottom:4px}
-  .stamp-sub{font-size:8.5pt;color:#64748B}
-  .stamp-date{font-size:10pt;font-weight:700;color:#1E3A8A;margin-top:8px;font-family:monospace}
-  .stamp-pending{margin:20px auto 0;max-width:420px;border:3px dashed #CBD5E1;border-radius:12px;
-    padding:18px 24px;text-align:center;page-break-inside:avoid}
-  .stamp-pending-title{font-size:14pt;font-weight:800;color:#94A3B8;text-transform:uppercase;
-    letter-spacing:.08em;margin-bottom:4px}
-  .stamp-pending-sub{font-size:8.5pt;color:#CBD5E1}
-
-  /* ── Footer ── */
-  .pg-footer{margin-top:20px;padding-top:8px;border-top:1px solid #CBD5E1;
-    display:flex;justify-content:space-between;align-items:center;font-size:7.5pt;color:#94A3B8}
-  .controlled{font-weight:700;color:#DC2626;font-size:7pt;
-    border:1px solid #FCA5A5;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.06em}
-  a.print-btn{display:block;width:fit-content;margin:16px auto 0;
-    background:#0A2D63;color:#fff;border:none;border-radius:8px;
-    padding:10px 28px;font-size:11pt;font-weight:700;cursor:pointer;text-decoration:none;
-    font-family:inherit;letter-spacing:.02em}
-  a.print-btn:hover{background:#0d3a7d}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:'Segoe UI',system-ui,Arial,sans-serif;font-size:9pt;line-height:1.45;color:#1E293B;background:#fff}
+@page{size:A4 portrait;margin:20mm 15mm 18mm 15mm}
+@media print{.no-print{display:none!important}.page-break{page-break-before:always}body{padding-top:12mm}.det-block{page-break-inside:avoid}.sig-block{page-break-inside:avoid}}
+.run-hdr{position:fixed;top:0;left:0;right:0;height:10mm;background:#0A2D63;color:#fff;display:flex;align-items:center;padding:0 18px;gap:14px;font-size:7.5pt;z-index:100}
+.rh-logo{font-size:11pt;font-weight:900;color:#F7C92E;letter-spacing:-.01em;white-space:nowrap}
+.rh-logo em{color:#fff;font-style:normal;font-weight:300}
+.rh-sep{width:1px;height:18px;background:rgba(255,255,255,.2);flex-shrink:0}
+.rh-prod{flex:1;font-size:8pt;font-weight:600;opacity:.88;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rh-br{font-family:monospace;font-size:9pt;font-weight:800;background:rgba(247,201,46,.18);border:1px solid rgba(247,201,46,.4);color:#F7C92E;padding:2px 10px;border-radius:4px;white-space:nowrap}
+.rh-ctrl{font-size:6pt;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#FCA5A5;border:1px solid rgba(252,165,165,.4);padding:2px 7px;border-radius:3px;white-space:nowrap}
+.cover{padding:6mm 0 5mm}
+.cover-hero{display:flex;align-items:stretch;border:2px solid #CBD5E1;border-radius:10px;overflow:hidden;margin-bottom:5mm}
+.cover-hero-left{flex:1;padding:16px 20px;background:linear-gradient(135deg,#F0F4FF 0%,#fff 100%)}
+.cover-brand-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.cover-logo{font-size:20pt;font-weight:900;color:#0A2D63;letter-spacing:-.02em;line-height:1}
+.cover-logo em{color:#1D4ED8;font-style:normal;font-weight:300;opacity:.5}
+.cover-tagline{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#475569;padding-left:12px;border-left:2px solid #E2E8F0;line-height:1.4}
+.cover-doc-title{font-size:15pt;font-weight:900;color:#0A2D63;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.cover-doc-sub{font-size:8pt;color:#475569;line-height:1.5}
+.cover-hero-right{width:155px;flex-shrink:0;background:#0A2D63;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px 12px;gap:6px}
+.cover-br-label{font-size:7pt;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.5)}
+.cover-br-num{font-family:monospace;font-size:20pt;font-weight:900;color:#F7C92E;letter-spacing:.04em;line-height:1}
+.cover-status-chip{display:inline-flex;align-items:center;gap:5px;background:rgba(5,150,105,.25);border:1.5px solid rgba(167,243,208,.5);color:#6EE7B7;border-radius:20px;padding:3px 10px;font-size:7pt;font-weight:800;letter-spacing:.05em}
+.cover-status-chip.pend{background:rgba(245,158,11,.15);border-color:rgba(245,158,11,.3);color:#FCD34D}
+.section-lbl{font-size:7pt;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#0A2D63;border-bottom:2.5px solid #0A2D63;padding-bottom:3px;margin-bottom:5px}
+.info-blk{margin-bottom:5mm}
+.lote-grid{display:grid;grid-template-columns:repeat(3,1fr);border:1.5px solid #CBD5E1;border-radius:6px;overflow:hidden}
+.lote-cell{padding:7px 12px;border-right:1px solid #E2E8F0;border-bottom:1px solid #E2E8F0}
+.lote-cell:nth-child(3n){border-right:none}
+.lote-cell:nth-last-child(-n+3){border-bottom:none}
+.lc-lbl{font-size:6.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#64748B;margin-bottom:2px}
+.lc-val{font-size:9.5pt;font-weight:700;color:#0A1530}
+.stamp-row{margin-bottom:5mm}
+.stamp{border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:14px;page-break-inside:avoid}
+.stamp.approved{background:#ECFDF5;border:2px solid #059669}
+.stamp.pending{background:#F8FAFC;border:2px dashed #CBD5E1}
+.stamp-icon{font-size:26pt;line-height:1;flex-shrink:0;color:#059669}
+.stamp-icon.pend{color:#CBD5E1;font-size:20pt}
+.stamp-title{font-size:11pt;font-weight:900;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.stamp.approved .stamp-title{color:#065F46}
+.stamp.pending .stamp-title{color:#94A3B8;font-size:9pt}
+.stamp-sub{font-size:7.5pt;color:#475569;line-height:1.4}
+.stamp-date{font-size:8pt;font-weight:700;color:#1D4ED8;margin-top:4px;font-family:monospace}
+.etapa-progress{display:flex;gap:0}
+.ep-item{flex:1;padding:8px 10px;display:flex;align-items:center;gap:8px;border:1.5px solid #E2E8F0;border-right:none}
+.ep-item:first-child{border-radius:6px 0 0 6px}
+.ep-item:last-child{border-radius:0 6px 6px 0;border-right:1.5px solid #E2E8F0}
+.ep-item.done{background:#ECFDF5;border-color:#A7F3D0}
+.ep-item.pend{background:#F8FAFC}
+.ep-num{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:8pt;font-weight:800;flex-shrink:0}
+.ep-item.done .ep-num{background:#059669;color:#fff}
+.ep-item.pend .ep-num{background:#CBD5E1;color:#64748B}
+.ep-body{flex:1;min-width:0}
+.ep-name{font-size:7.5pt;font-weight:700;color:#1E293B;line-height:1.2}
+.ep-sigs{font-size:6.5pt;color:#64748B;margin-top:1px}
+.ep-check{font-size:12pt;color:#059669;font-weight:900;flex-shrink:0}
+.etapa-block{margin-bottom:7mm}
+.etapa-hdr{background:#0A2D63;color:#fff;padding:10px 16px;display:flex;align-items:center;gap:12px;border-radius:8px 8px 0 0}
+.etapa-num{font-size:7pt;font-weight:800;text-transform:uppercase;letter-spacing:.08em;background:rgba(247,201,46,.22);border:1.5px solid rgba(247,201,46,.5);color:#F7C92E;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.etapa-nombre{font-size:11pt;font-weight:800;letter-spacing:.02em}
+.etapa-body{border:1.5px solid #CBD5E1;border-top:none;border-radius:0 0 8px 8px;overflow:hidden}
+.det-block{border-top:1.5px solid #E2E8F0}
+.det-block:first-child{border-top:none}
+.det-hdr{padding:9px 16px;background:#EFF6FF;border-bottom:1.5px solid #BFDBFE;display:flex;align-items:center;gap:10px}
+.det-step{width:24px;height:24px;border-radius:50%;flex-shrink:0;background:#1D4ED8;color:#fff;display:flex;align-items:center;justify-content:center;font-size:8.5pt;font-weight:800}
+.det-name{font-size:10pt;font-weight:700;color:#1E3A8A;flex:1}
+.det-badge{font-family:monospace;font-size:7.5pt;color:#64748B;background:#fff;border:1px solid #CBD5E1;padding:2px 8px;border-radius:4px}
+.det-status{display:inline-flex;align-items:center;gap:4px;font-size:7pt;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:10px}
+.det-status.ok{color:#065F46;background:#ECFDF5;border:1px solid #A7F3D0}
+.det-status.pend{color:#64748B;background:#F8FAFC;border:1px solid #E2E8F0}
+.det-content{padding:10px 16px 8px}
+.fields-tbl{width:100%;border-collapse:collapse;margin-bottom:8px;border:1px solid #E2E8F0;border-radius:6px;overflow:hidden}
+.fields-tbl tr{border-bottom:1px solid #E2E8F0}
+.fields-tbl tr:last-child{border-bottom:none}
+.fields-tbl tr:nth-child(even) td{background:#FAFBFC}
+.fl{padding:5px 10px;width:38%;font-size:7.5pt;font-weight:700;color:#475569;vertical-align:top;border-right:1px solid #E2E8F0;white-space:nowrap}
+.fv{padding:5px 10px;font-size:8.5pt;font-weight:500;color:#0F172A;vertical-align:top}
+.empty{color:#CBD5E1;font-style:italic}
+.dg-section{margin-bottom:8px}
+.dg-title{font-size:6.5pt;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:#1D4ED8;margin:8px 0 4px;display:flex;align-items:center;gap:6px}
+.dg-title::before{content:'';display:block;width:3px;height:11px;background:#1D4ED8;border-radius:2px;flex-shrink:0}
+.dg-wrap{border-radius:6px;overflow:hidden;border:1.5px solid #BFDBFE}
+.dg-tbl{width:100%;border-collapse:collapse;font-size:8pt}
+.dg-tbl thead tr{background:#0A2D63}
+.dg-tbl th{padding:6px 8px;text-align:left;font-size:6.5pt;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.dg-tbl tbody tr:nth-child(odd) td{background:#fff}
+.dg-tbl tbody tr:nth-child(even) td{background:#EFF6FF}
+.dg-tbl td{padding:5px 8px;border-bottom:1px solid #BFDBFE;color:#0F172A;vertical-align:middle}
+.dg-tbl tbody tr:last-child td{border-bottom:none}
+.sig-block{background:#F1F5F9;border-top:2px solid #CBD5E1;padding:10px 16px 12px}
+.sig-block-title{font-size:6.5pt;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:#64748B;margin-bottom:8px}
+.sig-cards{display:flex;gap:8px;flex-wrap:wrap}
+.sig-card{flex:1;min-width:160px;border-radius:8px;overflow:hidden;border:1.5px solid}
+.sig-card.signed{border-color:#A7F3D0;background:#fff}
+.sig-card.pending{border-color:#E2E8F0;background:#F8FAFC}
+.sig-card-top{padding:5px 10px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+.sig-card.signed .sig-card-top{background:#ECFDF5}
+.sig-card.pending .sig-card-top{background:#F8FAFC}
+.sig-status{font-size:7pt;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.sig-card.signed .sig-status{color:#059669}
+.sig-card.pending .sig-status{color:#CBD5E1}
+.sig-icon{font-size:13pt;line-height:1}
+.sig-card.signed .sig-icon{color:#059669}
+.sig-card.pending .sig-icon{color:#CBD5E1;font-size:10pt}
+.sig-card-body{padding:8px 10px}
+.sig-role{font-size:7pt;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;line-height:1.3}
+.sig-name{font-size:9pt;font-weight:800;color:#0A1530;margin-bottom:1px}
+.sig-cargo{font-size:7.5pt;color:#64748B;margin-bottom:5px}
+.sig-datetime{font-family:monospace;font-size:8pt;color:#1D4ED8;font-weight:700}
+.sig-card.pending .sig-name,.sig-card.pending .sig-cargo,.sig-card.pending .sig-role,.sig-card.pending .sig-datetime{color:#CBD5E1}
+.desv-section{margin-bottom:7mm}
+.desv-empty{padding:10px 14px;color:#94A3B8;font-style:italic;font-size:8pt;border:1px dashed #E2E8F0;border-radius:6px;text-align:center}
+.desv-card{border:1.5px solid #FCD34D;border-radius:8px;overflow:hidden;margin-bottom:6px;page-break-inside:avoid}
+.desv-hdr{background:#FFFBEB;padding:7px 12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #FEF08A}
+.desv-badge{font-size:6.5pt;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:2px 8px;border-radius:10px}
+.desv-badge.abierta{background:#FEF3C7;color:#D97706;border:1px solid #FCD34D}
+.desv-badge.cerrada{background:#D1FAE5;color:#065F46;border:1px solid #A7F3D0}
+.desv-campo{font-size:8.5pt;font-weight:700;color:#92400E;flex:1}
+.desv-code{font-family:monospace;font-size:8pt;color:#64748B;background:#fff;border:1px solid #E2E8F0;padding:2px 7px;border-radius:4px}
+.desv-body{padding:8px 12px;display:flex;flex-direction:column;gap:4px}
+.desv-valor{font-size:8pt;color:#78350F}
+.desv-desc{font-size:8.5pt;color:#1E293B;line-height:1.4}
+.desv-meta{font-size:7.5pt;color:#475569}
+.desv-cierre{margin-top:4px;padding:5px 8px;background:#F0FDF4;border-radius:5px;border:1px solid #BBF7D0}
+.desv-cierre-title{font-size:6.5pt;font-weight:800;color:#15803D;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px}
+.desv-cierre-text{font-size:8pt;color:#166534}
+.audit-section{margin-bottom:7mm}
+.at-empty{padding:10px 14px;color:#94A3B8;font-style:italic;font-size:8pt;border:1px dashed #E2E8F0;border-radius:6px;text-align:center}
+.audit-tbl{width:100%;border-collapse:collapse;font-size:8pt;border:1.5px solid #CBD5E1;border-radius:6px;overflow:hidden}
+.audit-tbl thead tr{background:#0A2D63}
+.audit-tbl th{padding:6px 8px;color:#fff;font-size:6.5pt;font-weight:800;text-transform:uppercase;letter-spacing:.05em;text-align:left;white-space:nowrap}
+.audit-tbl tbody tr:nth-child(even) td{background:#F8FAFC}
+.audit-tbl td{padding:5px 8px;border-bottom:1px solid #E2E8F0;color:#1E293B;vertical-align:top}
+.audit-tbl tbody tr:last-child td{border-bottom:none}
+.at-badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:10px;font-size:6.5pt;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.pg-footer{margin-top:8mm;padding-top:6px;border-top:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;font-size:7pt;color:#94A3B8;page-break-inside:avoid}
+.ctrl-badge{font-size:6.5pt;font-weight:800;color:#DC2626;letter-spacing:.06em;text-transform:uppercase;border:1px solid #FCA5A5;padding:2px 7px;border-radius:3px}
+.print-btn{display:block;width:fit-content;margin:14px auto 0;background:#0A2D63;color:#fff;border:none;border-radius:9px;padding:10px 26px;font-size:10.5pt;font-weight:700;cursor:pointer;text-decoration:none;font-family:inherit;letter-spacing:.02em}
 </style>
 </head><body>
 
-<div class="br-header">
-  <div class="br-logo">BAC<span>ord</span></div>
-  <div class="br-title">
-    <h1>Registro de Fabricación — Batch Record</h1>
-    <p>Sistema BACord · Módulo de Producción Farmacéutica</p>
-  </div>
-  <div class="br-num">BR-${id ?? '—'}</div>
+<div class="run-hdr">
+  <div class="rh-logo">BAC<em>ord</em></div>
+  <div class="rh-sep"></div>
+  <div class="rh-prod">${esc(producto)} · Lote ${esc(preLlenado?.loteLogistico ?? '—')}</div>
+  <div class="rh-br">${brCode}</div>
+  <div class="rh-ctrl">Documento Controlado</div>
 </div>
 
-<div style="padding:14px 0 0">
-  <div class="section-hdr">Información del Lote</div>
-  <div class="cab-grid">${cabHTML}</div>
+<div class="cover">
+  <div class="cover-hero">
+    <div class="cover-hero-left">
+      <div class="cover-brand-row">
+        <div class="cover-logo">BAC<em>ord</em></div>
+        <div class="cover-tagline">Sistema de Gestión<br>de Batch Records</div>
+      </div>
+      <div class="cover-doc-title">Registro de Fabricación</div>
+      <div class="cover-doc-sub">
+        Módulo de Producción Farmacéutica &nbsp;·&nbsp; Receta Maestra RM-SYN-001 v1.0<br>
+        Impreso: ${printDate} &nbsp;·&nbsp; ${printTime} &nbsp;·&nbsp; ${esc(userName)}
+      </div>
+    </div>
+    <div class="cover-hero-right">
+      <div class="cover-br-label">Batch Record</div>
+      <div class="cover-br-num">${brCode}</div>
+      <div class="cover-status-chip${brFinalizado ? '' : ' pend'}">${brFinalizado ? '✓ Aprobado' : '⏳ En Proceso'}</div>
+    </div>
+  </div>
 
-  <div class="section-hdr" style="margin-top:14px">Etapas y Firmas de Aprobación</div>
-  ${procsSections}
+  <div class="info-blk">
+    <div class="section-lbl">Información del Lote</div>
+    <div class="lote-grid">${loteGridHTML}</div>
+  </div>
 
-  ${brFinalizado
-      ? `<div class="stamp">
-    <div class="stamp-icon">✓</div>
-    <div class="stamp-title">Batch Record Aprobado</div>
-    <div class="stamp-sub">Todas las etapas completadas y firmadas conforme a BPM</div>
-    <div class="stamp-date">Impreso: ${printDate} · ${printTime}</div>
-  </div>`
-      : `<div class="stamp-pending">
-    <div class="stamp-pending-title">Pendiente de Aprobación</div>
-    <div class="stamp-pending-sub">No todas las etapas han sido completadas y firmadas</div>
-  </div>`
-    }
+  <div class="stamp-row">${stampHTML}</div>
 
-  <div class="pg-footer">
-    <span class="controlled">Documento Controlado</span>
-    <span>BR-${id ?? '—'} · Impreso: ${printDate} ${printTime}</span>
-    <span>BACord v1.0 — Sistema de Gestión de Batch Records</span>
+  <div class="info-blk">
+    <div class="section-lbl">Progreso de Etapas</div>
+    <div class="etapa-progress">${etapaProgressHTML}</div>
   </div>
 </div>
 
-<a class="print-btn no-print" onclick="window.print()">🖨 Imprimir / Guardar PDF</a>
+${procsSections}
+
+<div class="desv-section page-break">
+  <div class="section-lbl">Desviaciones y No Conformidades</div>
+  ${desvHTML}
+</div>
+
+<div class="audit-section">
+  <div class="section-lbl">Historial de Auditoría — Trazabilidad GMP</div>
+  ${auditHTML}
+</div>
+
+<div class="pg-footer">
+  <span class="ctrl-badge">Documento Controlado</span>
+  <span>${brCode} · ${esc(preLlenado?.loteLogistico ?? '—')} · Impreso: ${printDate} ${printTime}</span>
+  <span>BACord v1.0</span>
+</div>
+
+<button class="print-btn no-print" onclick="window.print()">🖨&nbsp; Imprimir / Guardar PDF</button>
 
 </body></html>`)
     win.document.close()
   }
 
   const userGruposMain = (authUser?.grupos ?? '').split(',').map(g => g.trim())
-  const canViewAudit = true || authUser?.esAdministrador || AUDIT_GRUPOS.some(g => userGruposMain.includes(g))
+  const canViewAudit = true || authUser?.esAdministrador || ['Calidad','Supervisión','Administradores','Dirección'].some(g => userGruposMain.includes(g))
   const [derogTarget, setDerogTarget] = useState<{
     firmaKey: string; blockKey: string; detalleId: number
     firmaInfo: FirmaInfo; texto: string; grupo: string
@@ -2299,12 +3301,16 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
     })
   }
 
+  // Snapshot de datos actuales por detalle — alimenta handlePrint
+  const formDataMapRef = useRef<Record<number, Record<string, unknown>>>({})
+
   const handleFormData = (
     detalleId: number,
     prev: Record<string, unknown>,
     next: Record<string, unknown>,
     labels: Record<string, string>
   ) => {
+    formDataMapRef.current[detalleId] = next   // siempre actualizar snapshot para print
     const cambios = diffFormData(prev, next, labels)
     if (!cambios.length) return
     const det = DETALLE_STRUCT.find(d => d.id === detalleId)
@@ -2377,44 +3383,53 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
           display:grid;place-items:center;font-size:11px;font-weight:800;color:#F7C92E;
           font-family:var(--f-mono);letter-spacing:0.05em; }
         .br-product-name { font-size:15px;font-weight:700;color:#fff;
-          white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-        .br-doc-ref { font-size:11px;color:rgba(255,255,255,0.45);
-          font-family:var(--f-mono);margin-top:3px; }
+          overflow:hidden;text-overflow:ellipsis; }
+        .br-doc-ref { font-size:11px;color:rgba(255,255,255,0.65);
+          font-family:var(--f-mono);margin-top:3px;display:flex;align-items:center;gap:8px;flex-wrap:wrap; }
         .br-identity-actions { display:flex;gap:8px;flex-shrink:0;margin-left:auto; }
         .br-btn-ghost { background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.18);
           color:#fff;border-radius:8px;padding:6px 14px;font-size:12px;font-weight:600;
           cursor:pointer;transition:background 120ms;display:inline-flex;align-items:center;
           gap:6px;font-family:var(--f-sans); }
         .br-btn-ghost:hover { background:rgba(255,255,255,0.2); }
+        .br-btn-ghost:focus-visible { outline:2px solid rgba(247,201,46,0.9);outline-offset:1px; }
         .br-btn-ghost.br-btn-active { background:rgba(247,201,46,0.22);
           border-color:rgba(247,201,46,0.45);color:#F7C92E; }
         /* Metadata grid */
-        .br-meta-grid { display:flex;flex-wrap:wrap;border-bottom:1px solid rgba(10,21,48,0.07); }
-        .br-meta-item { padding:10px 20px;border-right:1px solid rgba(10,21,48,0.06);flex-shrink:0; }
-        .br-meta-lbl { font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;
-          letter-spacing:0.08em;margin-bottom:3px;font-family:var(--f-mono); }
+        .br-meta-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+          border-bottom:1px solid rgba(10,21,48,0.07); }
+        .br-meta-item { padding:10px 18px;border-right:1px solid rgba(10,21,48,0.06);
+          border-bottom:1px solid rgba(10,21,48,0.04); }
+        .br-meta-lbl { font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;
+          letter-spacing:0.07em;margin-bottom:3px;font-family:var(--f-mono); }
         .br-meta-val { font-size:13px;font-weight:600;color:#0A1530; }
+        /* Overall progress bar */
+        .br-progress-bar { padding:8px 20px;display:flex;align-items:center;gap:12px;
+          border-bottom:1px solid rgba(10,21,48,0.07);background:#fff; }
         /* Stage tabs */
         .br-stages { display:flex;align-items:stretch;background:#F8F7F2;
           border-bottom:1px solid rgba(10,21,48,0.08);overflow-x:auto; }
         .br-stage-nav { padding:0 12px;background:none;border:none;cursor:pointer;
-          color:rgba(10,21,48,0.28);flex-shrink:0;transition:color 120ms;
+          color:rgba(10,21,48,0.45);flex-shrink:0;transition:color 120ms;
           display:flex;align-items:center; }
         .br-stage-nav:hover { color:#0A2D63; }
+        .br-stage-nav:disabled { opacity:0.25;cursor:not-allowed; }
+        .br-stage-nav:focus-visible { outline:2px solid var(--navy);outline-offset:1px; }
         .br-stage { flex:1;min-width:170px;padding:11px 18px;background:none;border:none;cursor:pointer;
           display:flex;align-items:center;gap:10px;border-right:1px solid rgba(10,21,48,0.07);
-          border-bottom:3px solid transparent;transition:all 100ms;text-align:left;
+          border-bottom:3px solid transparent;transition:background 100ms,border-color 100ms;text-align:left;
           font-family:var(--f-sans); }
         .br-stage:last-of-type { border-right:none; }
-        .br-stage:hover { background:rgba(10,21,48,0.02); }
-        .br-stage.active { background:#fff;border-bottom-color:#0A2D63; }
+        .br-stage:hover:not([aria-selected="true"]) { background:rgba(10,21,48,0.03); }
+        .br-stage[aria-selected="true"] { background:#fff;border-bottom-color:#0A2D63; }
+        .br-stage:focus-visible { outline:2px solid var(--navy);outline-offset:-2px; }
         .br-stage-num { width:26px;height:26px;border-radius:50%;background:rgba(10,21,48,0.09);
           color:#64748B;display:grid;place-items:center;font-size:11px;font-weight:800;
-          font-family:var(--f-mono);flex-shrink:0;transition:all 100ms; }
-        .br-stage.active .br-stage-num { background:#0A2D63;color:#fff; }
+          font-family:var(--f-mono);flex-shrink:0;transition:background 150ms,color 150ms; }
+        .br-stage[aria-selected="true"] .br-stage-num { background:#0A2D63;color:#fff; }
         .br-stage.done .br-stage-num { background:#2D5D4A;color:#fff; }
-        .br-stage-lbl { font-size:12.5px;font-weight:500;color:#64748B;line-height:1.3; }
-        .br-stage.active .br-stage-lbl { color:#0A1530;font-weight:700; }
+        .br-stage-lbl { font-size:12.5px;font-weight:500;color:#5B6478;line-height:1.3; }
+        .br-stage[aria-selected="true"] .br-stage-lbl { color:#0A1530;font-weight:700; }
         .br-stage.done .br-stage-lbl { color:#2D5D4A;font-weight:600; }
         /* Content layout */
         .br-layout { display:flex;gap:14px;align-items:flex-start;padding:16px;
@@ -2426,8 +3441,9 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
           box-shadow:0 1px 3px rgba(10,21,48,0.05);transition:box-shadow 150ms; }
         .det-card.det-open { box-shadow:0 4px 16px rgba(10,21,48,0.09); }
         .det-header { display:flex;align-items:center;gap:12px;padding:13px 16px;
-          cursor:pointer;transition:background 100ms;user-select:none; }
-        .det-header:hover { background:rgba(10,21,48,0.015); }
+          cursor:pointer;transition:background 100ms;user-select:none;border-radius:0; }
+        .det-header:hover { background:rgba(10,21,48,0.03); }
+        .det-header:focus-visible { outline:2px solid var(--navy);outline-offset:-2px; }
         /* Firma block */
         .firma-block { background:#F8F7F2;border-top:1.5px solid rgba(10,21,48,0.08); }
         .firma-block-hdr { padding:10px 18px;display:flex;align-items:center;gap:8px;
@@ -2443,6 +3459,10 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
         .audit-panel { width:280px;flex-shrink:0;background:#fff;border-radius:12px;
           border:1px solid rgba(10,21,48,0.09);overflow:hidden;position:sticky;top:16px;
           box-shadow:0 1px 4px rgba(10,21,48,0.06); }
+        /* Reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+          .br-btn-ghost,.br-stage,.br-stage-num,.br-stage-nav,.det-header,.det-card { transition:none !important; }
+        }
       `}</style>
 
       <div className="br-card">
@@ -2450,8 +3470,12 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
         <div className="br-identity">
           <div className="br-doc-badge">BR</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="br-product-name">SYNAPTOMAX 250 mg — Cápsulas de Liberación Modificada</div>
-            <div className="br-doc-ref" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div className="br-product-name">
+              {preLlenado?.descripcionMaterial ?? (
+                <span style={{ opacity: 0.5, fontWeight: 400 }}>Cargando…</span>
+              )}
+            </div>
+            <div className="br-doc-ref">
               <span>BR-{id}</span>
               {preLlenado && <>
                 <span style={{ opacity: 0.4 }}>·</span>
@@ -2472,14 +3496,28 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
             </div>
           </div>
           <div className="br-identity-actions">
-            {canViewAudit && (
-              <button className={`br-btn-ghost${showAudit ? ' br-btn-active' : ''}`}
-                onClick={() => setShowAudit(s => !s)}>
-                <i className="fa fa-history" /> Historial
+            <span style={{
+              fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, flexShrink: 0,
+              background: estadoBadge.bg, color: estadoBadge.color, letterSpacing: '.03em',
+            }}>
+              {estadoBadge.label}
+            </span>
+            {canViewAudit && !readonly && (
+              <button
+                className={`br-btn-ghost${showAudit ? ' br-btn-active' : ''}`}
+                aria-pressed={showAudit}
+                aria-label={showAudit ? 'Ocultar historial de auditoría' : 'Mostrar historial de auditoría'}
+                onClick={() => setShowAudit(s => !s)}
+              >
+                <i className="fa fa-history" aria-hidden="true" /> Historial
               </button>
             )}
-            <button className="br-btn-ghost" onClick={() => navigate('/batch-records')}>
-              <i className="fa fa-chevron-left" /> Volver
+            <button
+              className="br-btn-ghost"
+              aria-label="Volver al listado de Batch Records"
+              onClick={() => navigate('/batch-records')}
+            >
+              <i className="fa fa-chevron-left" aria-hidden="true" /> Volver
             </button>
           </div>
         </div>
@@ -2494,24 +3532,64 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
           ))}
         </div>
 
+        {/* ── Overall progress ── */}
+        <div className="br-progress-bar">
+          <div
+            style={{ flex: 1, height: 6, background: 'rgba(10,21,48,0.07)', borderRadius: 3, overflow: 'hidden' }}
+            role="progressbar"
+            aria-valuenow={overallPct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`Progreso total del batch record: ${overallPct}%`}
+          >
+            <div style={{
+              height: '100%', width: `${overallPct}%`, borderRadius: 3,
+              background: overallPct === 100
+                ? 'linear-gradient(90deg,#059669,#34D399)'
+                : overallPct >= 50
+                  ? 'linear-gradient(90deg,#1D4ED8,#60A5FA)'
+                  : 'linear-gradient(90deg,#D97706,#FCD34D)',
+              transition: 'width 400ms',
+            }} />
+          </div>
+          <span style={{ fontSize: 11.5, fontFamily: 'var(--f-mono)', fontWeight: 700, flexShrink: 0,
+            color: overallPct === 100 ? '#059669' : overallPct >= 50 ? '#1D4ED8' : '#D97706' }}>
+            {overallPct}%
+          </span>
+          <span style={{ fontSize: 11, color: '#94A3B8', flexShrink: 0 }}>
+            {doneFirmasCierre}/{totalFirmasCierre} firmas de cierre
+          </span>
+        </div>
+
         {/* ── Stage tabs ── */}
-        <div className="br-stages">
+        <div className="br-stages" role="tablist" aria-label="Etapas del proceso">
           {mockProcesos.length > 1 && (
-            <button className="br-stage-nav" title="Anterior"
-              onClick={() => { if (procesoIdx > 0) setProcesoActivo(mockProcesos[procesoIdx - 1].id) }}>
-              <ChevronLeft size={15} />
+            <button
+              className="br-stage-nav"
+              aria-label="Etapa anterior"
+              disabled={procesoIdx === 0}
+              onClick={() => { if (procesoIdx > 0) setProcesoActivo(mockProcesos[procesoIdx - 1].id) }}
+            >
+              <ChevronLeft size={15} aria-hidden="true" />
             </button>
           )}
           {mockProcesos.map((p, idx) => {
             const isDone     = cerradosProcesos.has(p.id)
             const isUnlocked = idx === 0 || cerradosProcesos.has(mockProcesos[idx - 1].id)
+            const isActive   = procesoActivo === p.id
             return (
               <button key={p.id}
-                className={`br-stage${procesoActivo === p.id ? ' active' : ''}${isDone ? ' done' : ''}`}
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`tabpanel-${p.id}`}
+                id={`tab-${p.id}`}
+                className={`br-stage${isDone ? ' done' : ''}`}
                 title={!isUnlocked ? `Complete y cierre la Etapa ${idx} primero` : undefined}
+                aria-disabled={!isUnlocked}
                 style={{ cursor: isUnlocked ? 'pointer' : 'not-allowed', opacity: isUnlocked ? 1 : 0.45 }}
-                onClick={() => { if (isUnlocked) setProcesoActivo(p.id) }}>
-                <div className="br-stage-num">
+                onClick={() => { if (isUnlocked) setProcesoActivo(p.id) }}
+              >
+                <div className="br-stage-num" aria-hidden="true">
                   {isDone
                     ? <i className="fa fa-check" style={{ fontSize: 9 }} />
                     : !isUnlocked
@@ -2519,20 +3597,36 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
                       : idx + 1}
                 </div>
                 <span className="br-stage-lbl">{p.descripcion}</span>
+                {isDone && (
+                  <span style={{ fontSize: 10, fontFamily: 'var(--f-mono)', fontWeight: 700,
+                    color: '#2D5D4A', background: 'rgba(45,93,74,0.1)',
+                    padding: '1px 7px', borderRadius: 10, marginLeft: 'auto', flexShrink: 0 }}>
+                    ✓
+                  </span>
+                )}
               </button>
             )
           })}
           {mockProcesos.length > 1 && (
-            <button className="br-stage-nav" title="Siguiente"
-              onClick={() => { if (procesoIdx < mockProcesos.length - 1) setProcesoActivo(mockProcesos[procesoIdx + 1].id) }}>
-              <ChevronRight size={15} />
+            <button
+              className="br-stage-nav"
+              aria-label="Etapa siguiente"
+              disabled={procesoIdx === mockProcesos.length - 1}
+              onClick={() => { if (procesoIdx < mockProcesos.length - 1) setProcesoActivo(mockProcesos[procesoIdx + 1].id) }}
+            >
+              <ChevronRight size={15} aria-hidden="true" />
             </button>
           )}
         </div>
 
         {/* ── Content ── */}
         <div className="br-layout">
-          <div className="br-forms">
+          <div
+            className="br-forms"
+            role="tabpanel"
+            id={`tabpanel-${procesoActivo}`}
+            aria-labelledby={`tab-${procesoActivo}`}
+          >
             {cerradosProcesos.has(procesoActivo) && (
               <div className="proc-closed">
                 <i className="fa fa-check-circle" style={{ fontSize: 15 }} />
@@ -2557,7 +3651,12 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
                     ...(preLlenado ? extractOpMappings(det.jsonSchema ?? '', preLlenado as unknown as Record<string, unknown>) : {}),
                     ...(PREFILLED[det.id] ?? {}),
                     ...buildDetalleInitialValues(det.id, preLlenado),
+                    ...buildMockManualData(det.id, preLlenado, Number(id)),
                   }}
+                  lockedKeys={preLlenado ? Array.from(new Set([
+                    ...Object.keys(extractOpMappings(det.jsonSchema ?? '', preLlenado as unknown as Record<string, unknown>)),
+                    ...Object.entries(buildDetalleInitialValues(det.id, preLlenado)).filter(([, v]) => !Array.isArray(v)).map(([k]) => k),
+                  ])) : []}
                   preLlenado={preLlenado}
                   onSave={handleSaveDetalle}
                   onFormData={handleFormData}
@@ -2569,10 +3668,13 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
               ))
             )}
           </div>
-          {showAudit && canViewAudit && (
-            <AuditPreviewPanel detalleIds={detallesProceso.map(d => d.id)} />
+          {!readonly && showAudit && canViewAudit && (
+            <AuditPreviewPanel brId={id ?? 0} />
           )}
         </div>
+
+        {/* ── Audit trail expandido (solo modo Consultar) ── */}
+        {readonly && <AuditExpandedPanel brId={id ?? 0} />}
 
         {/* ── BR finalizado banner ── */}
         {brFinalizado && (
@@ -2646,14 +3748,22 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
           <span style={{ fontSize: 12, color: '#94A3B8', marginRight: 'auto', fontFamily: 'var(--f-mono)' }}>
             BR-{id} · {procesoInfo?.descripcion}
           </span>
+          {!allDetallesCurrentDone && !cerradosProcesos.has(procesoActivo) && !readonly && (
+            <span id="cerrar-hint" style={{ fontSize: 11.5, color: '#D97706', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <i className="fa fa-exclamation-triangle" style={{ fontSize: 10 }} aria-hidden="true" />
+              Complete las firmas de todos los formularios para cerrar la etapa
+            </span>
+          )}
           {!readonly && !cerradosProcesos.has(procesoActivo) && (
             <button
               className="btn btn-warning"
-              style={{ fontSize: 12, opacity: allDetallesCurrentDone ? 1 : 0.5, cursor: allDetallesCurrentDone ? 'pointer' : 'not-allowed' }}
-              title={allDetallesCurrentDone ? 'Cerrar esta etapa' : 'Complete todas las firmas de cierre antes de cerrar la etapa'}
+              style={{ fontSize: 12 }}
+              aria-describedby={!allDetallesCurrentDone ? 'cerrar-hint' : undefined}
+              aria-disabled={!allDetallesCurrentDone}
               onClick={handleCerrarProceso}
-              disabled={!allDetallesCurrentDone}>
-              <i className="fa fa-lock" /> Cerrar Proceso
+              disabled={!allDetallesCurrentDone}
+            >
+              <i className="fa fa-lock" aria-hidden="true" /> Cerrar Proceso
             </button>
           )}
           {!readonly && brFinalizado && mockProcesos.every(p => cerradosProcesos.has(p.id)) && (
@@ -2663,7 +3773,7 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
           )}
           {brFinalizado && (
             <button onClick={handlePrint} className="btn btn-gray" style={{ fontSize: 12 }}>
-              <i className="fa fa-print" /> Imprimir
+              <i className="fa fa-file-pdf" /> {readonly ? 'Paquete de Auditoría' : 'Imprimir'}
             </button>
           )}
         </div>

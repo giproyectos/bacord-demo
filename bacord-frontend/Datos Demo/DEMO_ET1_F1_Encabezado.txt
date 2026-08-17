@@ -106,9 +106,7 @@
               "tableView": true,
               "opMapping": "loteLogistico",
               "validate": {
-                "required": true,
-                "pattern": "^[A-Z]{2}\\d{6}$",
-                "customMessage": "Formato: 2 letras + 6 dígitos (Ej: SN202501)"
+                "required": true
               }
             }
           ]
@@ -179,6 +177,7 @@
               "input": true,
               "tableView": true,
               "opMapping": "cantidadOrden",
+              "description": "Especificación: mín. 1 kg",
               "validate": {
                 "required": true,
                 "min": 1
@@ -322,9 +321,9 @@
               "type": "number",
               "input": true,
               "tableView": true,
+              "description": "Especificación GMP: 18–25 °C | Límite de ingreso: 15–30 °C",
               "validate": {
-                "required": true
-              },
+                "required": true, "min": 15, "max": 30},
               "suffix": "°C"
             }
           ]
@@ -343,9 +342,9 @@
               "type": "number",
               "input": true,
               "tableView": true,
+              "description": "Especificación GMP: 30–60 % HR | Límite de ingreso: 30–70 %",
               "validate": {
-                "required": true
-              },
+                "required": true, "min": 30, "max": 70},
               "suffix": "%"
             }
           ]

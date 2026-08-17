@@ -209,7 +209,7 @@ function compToJson(c: FormComp): Record<string, unknown> {
     const tag = c.headingLevel ?? 'h2'
     const al  = c.textAlign ? `text-align:${c.textAlign};` : ''
     b.type = 'content'; b.input = false
-    b.html = `<${tag} style="${al}margin:0">${c.label || 'Encabezado'}</${tag}>`
+    b.html = `<${tag} class="bacord-heading" style="${al}margin:0">${c.label || 'Encabezado'}</${tag}>`
   } else if (c.type === 'image') {
     b.type = 'content'; b.input = false
     const marg = c.textAlign === 'center' ? 'margin:0 auto;display:block' : c.textAlign === 'right' ? 'margin-left:auto;display:block' : ''
@@ -452,8 +452,8 @@ const PROP_LABEL: React.CSSProperties = {
   textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:5,
 }
 const SEC_TITLE: React.CSSProperties = {
-  borderTop:'1px solid #E2E8F0', paddingTop:12, marginTop:4, marginBottom:10,
-  fontSize:10, fontWeight:700, color:'#CBD5E1', textTransform:'uppercase', letterSpacing:'0.08em',
+  borderTop:'2px solid #EEF2F8', paddingTop:10, marginTop:8, marginBottom:10,
+  fontSize:10, fontWeight:700, color:'#94A3B8', textTransform:'uppercase', letterSpacing:'0.08em',
 }
 const BTN_COLORS: Record<string, string> = { primary:'#2563EB', secondary:'#6B7280', success:'#16A34A', danger:'#DC2626', warning:'#D97706' }
 
@@ -520,9 +520,18 @@ function FieldPreview({ c }: { c: FormComp }) {
     }
     case 'content':   return <div style={{ padding:'4px 2px', minHeight:20, fontSize:13.5, lineHeight:1.65, wordBreak:'break-word', overflow:'hidden' }} dangerouslySetInnerHTML={{ __html: c.html || '<em style="color:#94A3B8;font-size:12px;font-style:italic">Bloque HTML vacío</em>' }} />
     case 'heading': {
-      const sz: Record<string, number> = { h1:26, h2:20, h3:16, h4:13 }
+      const sz: Record<string, number> = { h1:20, h2:16, h3:13.5, h4:11.5 }
       const level = c.headingLevel ?? 'h2'
-      return <div style={{ fontSize:sz[level], fontWeight:700, color:'#0F172A', textAlign:c.textAlign ?? 'left', lineHeight:1.25, padding:'2px 0' }}>{c.label || 'Encabezado'}</div>
+      const isH4 = level === 'h4'
+      const barH = { h1:20, h2:16, h3:14, h4:11 }
+      return (
+        <div style={{ display:'flex', alignItems:'flex-start', gap:8, paddingBottom:6, borderBottom:'1.5px solid #EEF2F9', margin:'2px 0 6px', textAlign:c.textAlign ?? 'left' }}>
+          <div style={{ width:3, minHeight:barH[level], borderRadius:2, background:isH4?'#94A3B8':'#0A2D63', flexShrink:0, marginTop:3 }} />
+          <div style={{ fontSize:sz[level], fontWeight:700, color:isH4?'#64748B':'#0A1530', lineHeight:1.25, textTransform:isH4?'uppercase':'none', letterSpacing:isH4?'0.07em':'normal' }}>
+            {c.label || 'Encabezado'}
+          </div>
+        </div>
+      )
     }
     case 'image':
       return c.imageUrl
@@ -1695,6 +1704,8 @@ function FormularioPanel({ detalle, onClose, onSave }: {
   const [firmadosPreview, setFirmadosPreview] = useState<Record<string, boolean>>({})
   const [savedToast, setSavedToast] = useState(false)
   const [firmaPreview, setFirmaPreview] = useState<{ firmaKey: string; texto: string; grupo: string } | null>(null)
+  const [undoDelete, setUndoDelete] = useState<{ comp: FormComp; idx: number; label: string } | null>(null)
+  const undoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const renderRef  = useRef<HTMLIFrameElement>(null)
   const dragSrcRef = useRef<{ from:'palette'; type: CompType } | { from:'canvas'; id: string } | null>(null)
   const compsRef   = useRef(comps)
@@ -1829,7 +1840,30 @@ function FormularioPanel({ detalle, onClose, onSave }: {
     })
   }
 
-  const removeComp = (id: string) => { setComps(cs => removeFromTree(cs, id)); if (selected===id) setSelected(null) }
+  const removeComp = (id: string) => {
+    setComps(cs => {
+      const idx = cs.findIndex(c => c.id === id)
+      const comp = idx >= 0 ? cs[idx] : undefined
+      if (comp) {
+        if (undoTimer.current) clearTimeout(undoTimer.current)
+        const label = comp.label || PAL_MAP[comp.type]?.label || comp.type
+        setUndoDelete({ comp, idx, label })
+        undoTimer.current = setTimeout(() => setUndoDelete(null), 4000)
+      }
+      return removeFromTree(cs, id)
+    })
+    if (selected === id) setSelected(null)
+  }
+  const handleUndoDelete = () => {
+    if (!undoDelete) return
+    if (undoTimer.current) { clearTimeout(undoTimer.current); undoTimer.current = null }
+    setComps(cs => {
+      const a = [...cs]
+      a.splice(Math.min(undoDelete.idx, cs.length), 0, undoDelete.comp)
+      return a
+    })
+    setUndoDelete(null)
+  }
   const removeChild = (parentId: string, childId: string) => { setComps(cs => removeFromParent(cs, parentId, childId)); if (selected===childId) setSelected(null) }
 
   const dupComp = (id: string) => {
@@ -1942,9 +1976,39 @@ function FormularioPanel({ detalle, onClose, onSave }: {
               </div>
             </div>
             <div style={{ overflowY:'auto', flex:1, padding:'10px' }}>
+              {/* Más usados — quick access (shown when no search active) */}
+              {!search && (
+                <div style={{ marginBottom:14 }}>
+                  <div style={{ fontSize:9.5, fontWeight:700, color:'#94A3B8', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7, paddingLeft:2 }}>
+                    ★ Más usados
+                  </div>
+                  <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                    {(['textfield','number','select','firma-seccion','panel'] as const).map(type => {
+                      const p = PAL_MAP[type]
+                      return (
+                        <div key={type} draggable onDragStart={()=>onPalDragStart(type)} onClick={()=>addComp(type)}
+                          title={`Agregar ${p.label}`}
+                          style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 8px', borderRadius:8, border:`1.5px solid ${p.color}28`, background:p.bg, cursor:'grab', transition:'all 100ms', userSelect:'none' }}
+                          onMouseEnter={e=>{const b=e.currentTarget;b.style.borderColor=p.color;b.style.transform='translateX(2px)';b.style.boxShadow='0 2px 8px rgba(0,0,0,.1)'}}
+                          onMouseLeave={e=>{const b=e.currentTarget;b.style.borderColor=p.color+'28';b.style.transform='none';b.style.boxShadow='none'}}>
+                          <div style={{ width:24, height:24, borderRadius:6, background:'rgba(255,255,255,.7)', display:'grid', placeItems:'center', flexShrink:0 }}>
+                            <i className={`fa ${p.icon}`} style={{ color:p.color, fontSize:10 }} />
+                          </div>
+                          <span style={{ fontSize:11, fontWeight:600, color:p.color }}>{p.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div style={{ borderBottom:'1px solid #E8ECF2', margin:'10px 0 4px' }} />
+                </div>
+              )}
+
               {cats.filter(g=>g.items.length>0).map(g => (
                 <div key={g.cat} style={{ marginBottom:16 }}>
-                  <div style={{ fontSize:9.5, fontWeight:700, color:'#94A3B8', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7, paddingLeft:2 }}>{g.cat}</div>
+                  <div style={{ fontSize:9.5, fontWeight:700, color:'#94A3B8', textTransform:'uppercase', letterSpacing:'0.1em', marginBottom:7, paddingLeft:2, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                    {g.cat}
+                    <span style={{ fontSize:9, fontWeight:700, color:'#CBD5E1', background:'#F1F5F9', borderRadius:100, padding:'1px 6px' }}>{g.items.length}</span>
+                  </div>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:5 }}>
                     {g.items.map(p => (
                       <div key={p.type} draggable onDragStart={()=>onPalDragStart(p.type)} onClick={()=>addComp(p.type)}
@@ -2009,7 +2073,9 @@ function FormularioPanel({ detalle, onClose, onSave }: {
                           background:'#fff',
                           borderRadius: hasChildren ? '10px 10px 0 0' : 10,
                           border:`2px solid ${isSel?'#2563EB':isHov?'#94A3B8':'#E2E8F0'}`,
-                          boxShadow: isSel ? '0 0 0 4px rgba(37,99,235,.1)' : '0 1px 4px rgba(0,0,0,.05)',
+                          boxShadow: isSel
+                            ? `0 0 0 4px rgba(37,99,235,.1), inset 3px 0 0 ${pp.color}`
+                            : `0 1px 4px rgba(0,0,0,.05), inset 3px 0 0 ${pp.color}`,
                           cursor:'pointer', transition:'all 120ms', overflow:'hidden',
                         }}>
 
@@ -2111,9 +2177,21 @@ function FormularioPanel({ detalle, onClose, onSave }: {
               </div>
             ) : (
               <>
-                <div style={{ padding:'12px 16px', borderBottom:'1px solid #E2E8F0', flexShrink:0 }}>
-                  <div style={{ fontSize:13, fontWeight:700, color:'#0F172A' }}>Propiedades</div>
-                  <div style={{ fontSize:11, color:'#94A3B8', fontFamily:'var(--f-mono)', marginTop:2 }}>{selComp.key || toKey(selComp.label)}</div>
+                <div style={{ padding:'10px 14px', borderBottom:'1px solid #E2E8F0', flexShrink:0, background:'#F8FAFC' }}>
+                  {(() => {
+                    const pp2 = PAL_MAP[selComp.type] ?? { icon:'fa-cube', color:'#94A3B8', bg:'#F8FAFC', label: selComp.type }
+                    return (
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <div style={{ width:28, height:28, borderRadius:7, background:pp2.bg, border:`1.5px solid ${pp2.color}28`, display:'grid', placeItems:'center', flexShrink:0 }}>
+                          <i className={`fa ${pp2.icon}`} style={{ color:pp2.color, fontSize:11 }} />
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:12, fontWeight:700, color:'#0F172A' }}>{pp2.label}</div>
+                          <div style={{ fontSize:10.5, color:'#94A3B8', fontFamily:'var(--f-mono)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selComp.key || toKey(selComp.label)}</div>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
                 <div style={{ flex:1, overflow:'auto' }}>
                   <PropertiesPanel comp={selComp} onChange={p=>updComp(selComp.id,p)} onDelete={()=>removeComp(selComp.id)}
@@ -2174,6 +2252,19 @@ function FormularioPanel({ detalle, onClose, onSave }: {
       {savedToast && (
         <div style={{ position:'fixed', bottom:24, right:24, background:'#065F46', color:'#fff', padding:'10px 18px', borderRadius:8, fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:8, boxShadow:'0 4px 24px rgba(0,0,0,.18)', zIndex:9999 }}>
           <i className="fa fa-check-circle" /> Detalle guardado correctamente
+        </div>
+      )}
+
+      {undoDelete && (
+        <div style={{ position:'fixed', bottom:24, left:'50%', transform:'translateX(-50%)', background:'#0F172A', color:'#fff', padding:'11px 18px', borderRadius:10, fontSize:13, fontWeight:500, display:'flex', alignItems:'center', gap:12, boxShadow:'0 4px 24px rgba(0,0,0,.28)', zIndex:9999, minWidth:300 }}>
+          <i className="fa fa-trash-alt" style={{ color:'#F87171', fontSize:12 }} />
+          <span style={{ flex:1 }}>
+            <strong>"{undoDelete.label}"</strong> eliminado
+          </span>
+          <button onClick={handleUndoDelete}
+            style={{ padding:'5px 14px', background:'#FFDF64', color:'#0A1530', border:'none', borderRadius:6, fontWeight:700, fontSize:12, cursor:'pointer', flexShrink:0 }}>
+            Deshacer
+          </button>
         </div>
       )}
     </div>
@@ -2256,22 +2347,39 @@ export function DetallesList() {
           : <span style={{ color:'var(--ink-4)', fontSize:12 }}>—</span>
       }
     },
-    { key:'__acc', header:'Acciones', width:'18%', align:'center',
+    { key:'__acc', header:'Acciones', width:'20%', align:'center',
       render:r=>(
-        <div style={{ display:'flex', gap:5, justifyContent:'center' }}>
-          {([
-            { icon:'fa-edit',      color:'var(--forest)', title:'Modificar',  fn:()=>openMod(r) },
-            { icon:'fa-paperclip', color:'var(--orange)', title:'Copiar',     fn:()=>openCopiar(r) },
-            { icon:'fa-trash-alt', color:'#dc2626',       title:'Eliminar',   fn:()=>openElim(r) },
-            { icon:'fa-indent',    color:'var(--navy)',   title:'Formulario', fn:()=>{ setFormulario(r); window.scrollTo({top:0,behavior:'smooth'}) } },
-          ] as const).map(({icon,color,title,fn})=>(
-            <button key={title} title={title} onClick={fn}
-              style={{ width:28, height:28, borderRadius:7, border:'1.5px solid transparent', background:'transparent', cursor:'pointer', display:'grid', placeItems:'center', fontSize:12.5, color, transition:'all 100ms' }}
-              onMouseEnter={e=>{const b=e.currentTarget;b.style.background=color+'18';b.style.borderColor=color+'40'}}
-              onMouseLeave={e=>{const b=e.currentTarget;b.style.background='transparent';b.style.borderColor='transparent'}}>
-              <i className={`fa ${icon}`} />
+        <div style={{ display:'flex', gap:6, justifyContent:'center', alignItems:'center' }}>
+          {/* Utility pill: edit / copy / delete grouped together */}
+          <div style={{ display:'flex', alignItems:'center', gap:1, padding:3, background:'#F1F5F9', borderRadius:9, border:'1px solid #E2E8F0' }}>
+            <button title="Editar metadatos" onClick={()=>openMod(r)}
+              style={{ width:27, height:27, borderRadius:6, border:'none', background:'transparent', cursor:'pointer', color:'#94A3B8', fontSize:12, display:'grid', placeItems:'center', transition:'all 80ms' }}
+              onMouseEnter={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.color='#16A34A';e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,.08)'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#94A3B8';e.currentTarget.style.boxShadow='none'}}>
+              <i className="fa fa-pen" style={{ fontSize:11 }} />
             </button>
-          ))}
+            <button title="Duplicar formulario" onClick={()=>openCopiar(r)}
+              style={{ width:27, height:27, borderRadius:6, border:'none', background:'transparent', cursor:'pointer', color:'#94A3B8', fontSize:12, display:'grid', placeItems:'center', transition:'all 80ms' }}
+              onMouseEnter={e=>{e.currentTarget.style.background='#fff';e.currentTarget.style.color='#EA580C';e.currentTarget.style.boxShadow='0 1px 4px rgba(0,0,0,.08)'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#94A3B8';e.currentTarget.style.boxShadow='none'}}>
+              <i className="fa fa-clone" style={{ fontSize:11 }} />
+            </button>
+            {/* Visual divider before destructive action */}
+            <div style={{ width:1, height:16, background:'#E2E8F0', margin:'0 2px' }} />
+            <button title="Eliminar formulario" onClick={()=>openElim(r)}
+              style={{ width:27, height:27, borderRadius:6, border:'none', background:'transparent', cursor:'pointer', color:'#CBD5E1', fontSize:11, display:'grid', placeItems:'center', transition:'all 80ms' }}
+              onMouseEnter={e=>{e.currentTarget.style.background='#FEF2F2';e.currentTarget.style.color='#DC2626';e.currentTarget.style.boxShadow='0 1px 4px rgba(220,38,38,.1)'}}
+              onMouseLeave={e=>{e.currentTarget.style.background='transparent';e.currentTarget.style.color='#CBD5E1';e.currentTarget.style.boxShadow='none'}}>
+              <i className="fa fa-trash" style={{ fontSize:11 }} />
+            </button>
+          </div>
+          {/* Primary CTA */}
+          <button onClick={()=>{ setFormulario(r); window.scrollTo({top:0,behavior:'smooth'}) }}
+            style={{ padding:'5px 13px', borderRadius:7, border:'none', background:'var(--navy)', cursor:'pointer', color:'#fff', fontSize:11.5, fontWeight:600, transition:'all 100ms', whiteSpace:'nowrap', letterSpacing:'0.01em' }}
+            onMouseEnter={e=>e.currentTarget.style.background='#0E3A7A'}
+            onMouseLeave={e=>e.currentTarget.style.background='var(--navy)'}>
+            Diseñar
+          </button>
         </div>
       ),
     },
@@ -2279,10 +2387,32 @@ export function DetallesList() {
 
   const modalTitle = mode==='crear'?'Crear Detalle':mode==='modificar'?'Modificar Detalle':'Copiar Detalle'
 
+  const statsItems = [
+    { label:'Total formularios', count:data.length,                                     color:'var(--navy)',  bg:'rgba(10,45,99,.07)',  icon:'fa-wpforms' },
+    { label:'Activos',           count:data.filter(d=>d.estado==='Activo').length,       color:'#16A34A',     bg:'#F0FDF4',              icon:'fa-check-circle' },
+    { label:'Inactivos',         count:data.filter(d=>d.estado==='Inactivo').length,     color:'#64748B',     bg:'#F1F5F9',              icon:'fa-pause-circle' },
+    { label:'Con campos',        count:data.filter(d=>countComps(d.jsonSchema)>0).length,color:'#2563EB',     bg:'#EFF6FF',              icon:'fa-list-alt' },
+  ]
+
   return (
     <>
       {!formulario && (
         <>
+          {/* Stats summary bar */}
+          <div style={{ display:'flex', gap:10, marginBottom:16 }}>
+            {statsItems.map(s => (
+              <div key={s.label} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 16px', background:s.bg, border:`1.5px solid ${s.color}22`, borderRadius:'var(--r-md)', flex:1, minWidth:0 }}>
+                <div style={{ width:34, height:34, borderRadius:9, background:s.color+'18', display:'grid', placeItems:'center', flexShrink:0 }}>
+                  <i className={`fa ${s.icon}`} style={{ color:s.color, fontSize:14 }} />
+                </div>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontSize:22, fontWeight:800, color:s.color, lineHeight:1 }}>{s.count}</div>
+                  <div style={{ fontSize:11, color:s.color+'AA', marginTop:2, fontWeight:500, whiteSpace:'nowrap' }}>{s.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
           <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
             <div style={{ flex:1, position:'relative' }}>
               <i className="fa fa-search" style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'var(--ink-4)', fontSize:13, pointerEvents:'none' }} />
