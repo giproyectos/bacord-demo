@@ -127,6 +127,7 @@
       "label": "Tabla de Pesaje / Weighing Table",
       "key": "dgPesaje",
       "type": "datagrid",
+      "pesajeDataGrid": true,
       "reorder": false,
       "addAnotherPosition": "bottom",
       "layoutFixed": false,

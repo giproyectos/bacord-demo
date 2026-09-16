@@ -131,6 +131,37 @@ function injectMaterialOptions(schemaJson: string, materiales: Material[]): stri
   } catch { return schemaJson }
 }
 
+// Traverses form.io schema JSON and, for every DataGrid that has a custom
+// `pesajeDataGrid: true` property, replaces its defaultValue rows with the
+// componentes from preLlenado so the weighing table comes pre-populated.
+function injectComponentesPesaje(schemaJson: string, preLlenado: PreLlenadoBR | null): string {
+  if (!preLlenado?.componentes?.length) return schemaJson
+  try {
+    const schema = JSON.parse(schemaJson) as Record<string, unknown>
+    function walk(comps: unknown[]): void {
+      for (const raw of comps) {
+        const c = raw as Record<string, unknown>
+        if (c.type === 'datagrid' && c.pesajeDataGrid === true) {
+          c.defaultValue = preLlenado.componentes!.map(comp => ({
+            txtMaterial: comp.descripcionMaterialComponente,
+            txtCodigoMP: comp.codigoMaterialComponente,
+            txtLoteProveedor: comp.loteComponente,
+            numCantTeorica: comp.cantidad,
+          }))
+        }
+        if (Array.isArray(c.components)) walk(c.components)
+        if (Array.isArray(c.columns)) {
+          for (const col of c.columns as Record<string, unknown>[]) {
+            if (Array.isArray(col.components)) walk(col.components)
+          }
+        }
+      }
+    }
+    if (Array.isArray(schema?.components)) walk(schema.components)
+    return JSON.stringify(schema)
+  } catch { return schemaJson }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 function parseSchema(jsonSchema: string): SchemaComp[] {
   if (!jsonSchema) return []
@@ -2406,9 +2437,23 @@ ${procsSections}
             ) : (
               detallesProceso.map(det => {
                 const opMappings = preLlenado ? extractOpMappings(det.jsonSchema ?? '', preLlenado as unknown as Record<string, unknown>) : {}
-                const detConMateriales = materiales.length
-                  ? { ...det, jsonSchema: injectMaterialOptions(det.jsonSchema ?? '', materiales) }
-                  : det
+                let schemaFinal = det.jsonSchema ?? ''
+                if (materiales.length) schemaFinal = injectMaterialOptions(schemaFinal, materiales)
+                schemaFinal = injectComponentesPesaje(schemaFinal, preLlenado)
+                const detConMateriales = { ...det, jsonSchema: schemaFinal }
+
+                // Pre-llenar tabla de pesaje solo si aún no hay datos guardados para este detalle
+                const savedData = detalleDatos[det.id] ?? {}
+                const pesajePreFill: Record<string, unknown> = {}
+                if (!savedData.dgPesaje && preLlenado?.componentes?.length) {
+                  pesajePreFill.dgPesaje = preLlenado.componentes.map(comp => ({
+                    txtMaterial: comp.descripcionMaterialComponente,
+                    txtCodigoMP: comp.codigoMaterialComponente,
+                    txtLoteProveedor: comp.loteComponente,
+                    numCantTeorica: comp.cantidad,
+                  }))
+                }
+
                 return (
                   <DetalleCard
                     key={det.id}
@@ -2417,7 +2462,7 @@ ${procsSections}
                     desviaciones={desviaciones}
                     readonly={(procesoActivo != null && procesosCerrados.has(procesoActivo)) || soloLectura}
                     onFirmar={firma => { if (!soloLectura) setFirmaTarget({ detalle: det, firma }) }}
-                    initialValues={{ ...opMappings, ...(detalleDatos[det.id] ?? {}) }}
+                    initialValues={{ ...opMappings, ...pesajePreFill, ...savedData }}
                     lockedKeys={Object.keys(opMappings)}
                     preLlenado={preLlenado}
                     onFormData={handleFormData}
