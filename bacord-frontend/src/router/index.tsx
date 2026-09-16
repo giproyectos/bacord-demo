@@ -10,6 +10,9 @@ const lz = (fn: () => Promise<Record<string, unknown>>, key: string) =>
 
 // Pantallas
 const LoginPage            = lz(() => import('@/features/auth/LoginPage'), 'LoginPage')
+const ActivarCuentaPage    = lz(() => import('@/features/auth/ActivarCuentaPage'), 'ActivarCuentaPage')
+const ConfigurarPinPage    = lz(() => import('@/features/auth/ConfigurarPinPage'), 'ConfigurarPinPage')
+const OidcCallbackPage     = lz(() => import('@/features/auth/OidcCallbackPage'), 'OidcCallbackPage')
 const DashboardPage        = lz(() => import('@/features/dashboard/DashboardPage'), 'DashboardPage')
 const BatchRecordList      = lz(() => import('@/features/batch-record/BatchRecordList'), 'BatchRecordList')
 const EditarBatchRecord    = lz(() => import('@/features/batch-record/EditarBatchRecord'), 'EditarBatchRecord')
@@ -22,12 +25,12 @@ const FormulaControlCrear  = lz(() => import('@/features/formula-control/Formula
 const FirmasList           = lz(() => import('@/features/firmas/FirmasList'), 'FirmasList')
 const EstrategiaFirmasList = lz(() => import('@/features/estrategia-firmas/EstrategiaFirmasList'), 'EstrategiaFirmasList')
 const CargueOPList            = lz(() => import('@/features/cargue-op/CargueOPList'), 'CargueOPList')
+const CargueMaterialesList    = lz(() => import('@/features/cargue-op/CargueMaterialesList'), 'CargueMaterialesList')
 const OrdenProcesoDetalle     = lz(() => import('@/features/orden-proceso/OrdenProcesoDetalle'), 'OrdenProcesoDetalle')
 const FormulaControlDetalle   = lz(() => import('@/features/formula-control/FormulaControlDetalle'), 'FormulaControlDetalle')
 const UsuariosList         = lz(() => import('@/features/usuarios/UsuariosList'), 'UsuariosList')
 const RolesList            = lz(() => import('@/features/roles/RolesList'), 'RolesList')
 const ConsultaLog          = lz(() => import('@/features/admin/ConsultaLog'), 'ConsultaLog')
-const Sesiones             = lz(() => import('@/features/admin/Sesiones'), 'Sesiones')
 const LogLogueos           = lz(() => import('@/features/admin/LogLogueos'), 'LogLogueos')
 
 // Catálogos
@@ -51,12 +54,15 @@ const w = (el: React.ReactNode) => <ErrorBoundary><Suspense fallback={<Spin />}>
 
 export const router = createBrowserRouter([
   { path: '/login', element: <AuthLayout />, children: [{ index: true, element: w(<LoginPage />) }] },
+  { path: '/activar-cuenta', element: <AuthLayout />, children: [{ index: true, element: w(<ActivarCuentaPage />) }] },
+  { path: '/auth/callback', element: <AuthLayout />, children: [{ index: true, element: w(<OidcCallbackPage />) }] },
   {
     element: <AuthGuard />,
     children: [{
       element: <MainLayout />,
       children: [
         { path: '/',  element: w(<DashboardPage />) },
+        { path: '/mi-perfil/pin', element: w(<ConfigurarPinPage />) },
 
         // Operación
         { path: '/batch-records',                element: w(<BatchRecordList />) },
@@ -77,11 +83,11 @@ export const router = createBrowserRouter([
         { path: '/administracion/usuarios',              element: w(<UsuariosList />) },
         { path: '/administracion/roles',                 element: w(<RolesList />) },
         { path: '/admin/logs',                           element: w(<ConsultaLog />) },
-        { path: '/admin/sesiones',                       element: w(<Sesiones />) },
         { path: '/admin/log-logueos',                    element: w(<LogLogueos />) },
         { path: '/administracion/centros',               element: w(<CentrosList />) },
         { path: '/administracion/grupos-responsables',   element: w(<GruposResponsablesList />) },
         { path: '/administracion/materiales',            element: w(<MaterialesList />) },
+        { path: '/administracion/materiales/cargar',     element: w(<CargueMaterialesList />) },
         { path: '/administracion/procesos',              element: w(<ProcesosList />) },
         { path: '/administracion/parametros',            element: w(<ParametrosList />) },
         { path: '/administracion/detalles',              element: w(<DetallesList />) },

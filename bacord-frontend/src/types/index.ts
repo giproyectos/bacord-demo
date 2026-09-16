@@ -3,15 +3,22 @@ export interface Resultado<T = unknown> {
 }
 export interface AuthUser {
   idUsuario: number; nombres: string; apellidos: string; login: string
-  email: string; idCentro: number; esAdministrador: boolean
-  roles: string[]; token?: string
+  email: string; idCentro: number | null; esAdministrador: boolean
+  roles: string[]; modulos: string[]; moduloEdicion: string[]; token?: string
   grupos?: string; idGrupos?: string
 }
 export interface Usuario {
   idUsuario: number; numeroIdentificacion: string; nombres: string; apellidos: string
   login: string; email: string; activo: number; idCentro: number
   esAdministrador: number; bloqueado: number; intentosFallidos: number
+  idRol: number | null; rolNombre: string
+  fechaCaducidad: string | null; activacionPendiente: boolean
+  pinConfigurado: boolean; pinBloqueado: boolean
+  loginLocalDeshabilitado: boolean
   grupos: string; idGrupos: string; fechaCreacion: string
+}
+export interface Rol {
+  id: number; nombre: string; descripcion: string; modulos: string[]; modulosEdicion: string[]; activo: boolean; creadoEn: string
 }
 export interface RecetaMaestra {
   idRecetaMaestra: number; codigo: string; descripcion: string; version: string
@@ -56,7 +63,7 @@ export const GRUPOS: Record<number, string> = {
   1: 'Administradores', 2: 'Producción', 3: 'Calidad', 4: 'Supervisión',
 }
 export interface GrupoResponsable {
-  id: number; nombre: string; descripcion: string; colorKey: string
+  id: number; nombre: string; descripcion: string; colorKey: string; activo: boolean
 }
 export interface DatosFirma {
   idBatchRecord: number; idDetalleFirma: number; codigo: string; cierraProceso: number; cierraBatch: number

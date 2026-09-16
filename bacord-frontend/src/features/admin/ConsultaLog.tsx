@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef } from 'react'
-import { useAuditStore } from '@/stores/auditStore'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { auditoriaApi } from '@/api/auditoria'
 import type { AuditEntry, AuditAccion } from '@/types/audit'
 
 // ── Config ────────────────────────────────────────────────────────────────
@@ -11,6 +11,8 @@ const ACCION_CFG: Record<AuditAccion, { label: string; bg: string; color: string
   FIRMAR_CIERRE:  { label: 'Firma Cierre',   bg: '#EDE9FE', color: '#5B21B6', dot: '#7C3AED' },
   DEROGAR_FIRMA:  { label: 'Derogación',     bg: '#FEF3C7', color: '#92400E', dot: '#D97706' },
   LIBERAR_LOTE:   { label: 'Liberación',     bg: '#F0FDF4', color: '#065F46', dot: '#059669' },
+  REGISTRAR_DESVIACION: { label: 'Desviación registrada', bg: '#FEF3C7', color: '#92400E', dot: '#D97706' },
+  CERRAR_DESVIACION:    { label: 'Desviación cerrada',    bg: '#F0FDF4', color: '#065F46', dot: '#059669' },
   LOGIN:          { label: 'Acceso',         bg: '#F1F5F9', color: '#334155', dot: '#64748B' },
   LOGIN_FALLIDO:  { label: 'Acceso fallido', bg: '#FEE2E2', color: '#991B1B', dot: '#EF4444' },
   LOGOUT:         { label: 'Cierre sesión',  bg: '#F1F5F9', color: '#334155', dot: '#64748B' },
@@ -40,8 +42,17 @@ function AccionBadge({ accion }: { accion: AuditAccion }) {
 }
 
 // ── Export CSV ────────────────────────────────────────────────────────────
+// El detalle de cambios va en el propio archivo (no solo un conteo) para que el CSV sirva
+// como evidencia autosuficiente — sin tener que volver a abrir cada evento en la pantalla.
+function formatCambios(cambios: AuditEntry['cambios']): string {
+  if (!cambios || cambios.length === 0) return ''
+  return cambios
+    .map(c => `${c.etiqueta}: "${c.valorAnterior || 'vacío'}" → "${c.valorNuevo || 'vacío'}"`)
+    .join(' | ')
+}
+
 function exportCsv(entries: AuditEntry[]) {
-  const headers = ['Fecha', 'Hora', 'Usuario', 'Nombre', 'Cargo', 'Acción', 'Entidad', 'ID', 'Descripción', 'Módulo', 'Motivo', 'N° Cambios']
+  const headers = ['Fecha', 'Hora', 'Usuario', 'Nombre', 'Cargo', 'Acción', 'Entidad', 'ID', 'Descripción', 'Módulo', 'Motivo', 'N° Cambios', 'Detalle de Cambios']
   const rows = entries.map(e => {
     const { fecha, hora } = fmtTs(e.timestamp)
     return [
@@ -52,6 +63,7 @@ function exportCsv(entries: AuditEntry[]) {
       e.modulo,
       e.motivo ?? '',
       String(e.cambios?.length ?? 0),
+      formatCambios(e.cambios),
     ].map(v => `"${v.replace(/"/g, '""')}"`)
   })
   const csv = [headers, ...rows].map(r => r.join(',')).join('\r\n')
@@ -190,15 +202,18 @@ function DetalleModal({ entry, onClose }: { entry: AuditEntry; onClose: () => vo
 }
 
 // ── LogTable ──────────────────────────────────────────────────────────────
-const DATA_ACCIONES:  AuditAccion[] = ['CREAR', 'MODIFICAR', 'CANCELAR', 'FIRMAR_SECCION', 'FIRMAR_CIERRE', 'DEROGAR_FIRMA', 'LIBERAR_LOTE']
+const DATA_ACCIONES:  AuditAccion[] = ['CREAR', 'MODIFICAR', 'CANCELAR', 'FIRMAR_SECCION', 'FIRMAR_CIERRE', 'DEROGAR_FIRMA', 'LIBERAR_LOTE', 'REGISTRAR_DESVIACION', 'CERRAR_DESVIACION']
 const SESION_ACCIONES: AuditAccion[] = ['LOGIN', 'LOGIN_FALLIDO', 'LOGOUT']
 
 const PAGE = 25
 
 function LogTable({ acciones, emptyMsg }: { acciones: AuditAccion[]; emptyMsg: string }) {
-  const allEntries  = useAuditStore(s => s.entries)
-  const clearAudit  = useAuditStore(s => s.clear)
+  const [allEntries, setAllEntries] = useState<AuditEntry[]>([])
   const searchRef   = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    auditoriaApi.consultar().then(setAllEntries).catch(() => setAllEntries([]))
+  }, [])
 
   const [q, setQ]               = useState('')
   const [accionF, setAccionF]   = useState('')
@@ -208,7 +223,6 @@ function LogTable({ acciones, emptyMsg }: { acciones: AuditAccion[]; emptyMsg: s
   const [fechaFin, setFechaFin] = useState('')
   const [page, setPage]         = useState(1)
   const [selected, setSelected] = useState<AuditEntry | null>(null)
-  const [confirmClear, setConfirmClear] = useState(false)
 
   const base = useMemo(
     () => allEntries.filter(e => acciones.includes(e.accion)),
@@ -460,15 +474,6 @@ function LogTable({ acciones, emptyMsg }: { acciones: AuditAccion[]; emptyMsg: s
                   <i className="fa fa-download" aria-hidden="true" /> Exportar CSV
                 </button>
               )}
-              {base.length > 0 && (
-                <button
-                  className="btn btn-gray" style={{ fontSize: 12, padding: '5px 10px', color: '#DC2626' }}
-                  onClick={() => setConfirmClear(true)}
-                  title="Borrar todos los registros de auditoría"
-                >
-                  <i className="fa fa-trash" aria-hidden="true" /> Limpiar log
-                </button>
-              )}
             </div>
           </div>
 
@@ -623,41 +628,6 @@ function LogTable({ acciones, emptyMsg }: { acciones: AuditAccion[]; emptyMsg: s
 
       {/* Detail modal */}
       {selected && <DetalleModal entry={selected} onClose={() => setSelected(null)} />}
-
-      {/* Clear confirm modal */}
-      {confirmClear && (
-        <div
-          role="dialog" aria-modal="true" aria-labelledby="clear-title"
-          style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(10,21,48,.5)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={() => setConfirmClear(false)}
-        >
-          <div style={{ background: 'var(--paper)', borderRadius: 14, boxShadow: 'var(--sh-3)',
-            width: '100%', maxWidth: 400 }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ background: '#7C2D12', borderRadius: '14px 14px 0 0', padding: '14px 22px',
-              display: 'flex', alignItems: 'center', gap: 10 }}>
-              <i className="fa fa-trash" style={{ color: '#FCA5A5', fontSize: 14 }} aria-hidden="true" />
-              <span id="clear-title" style={{ color: '#fff', fontWeight: 700, fontSize: 14, flex: 1 }}>
-                Limpiar historial
-              </span>
-              <button style={{ background: 'rgba(255,255,255,.1)', border: 'none', cursor: 'pointer',
-                color: '#fff', width: 28, height: 28, borderRadius: 7, fontSize: 16, display: 'grid', placeItems: 'center' }}
-                onClick={() => setConfirmClear(false)} aria-label="Cancelar">×</button>
-            </div>
-            <div style={{ padding: '18px 22px', fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.6 }}>
-              ¿Eliminar <strong>todos</strong> los {base.length} eventos del historial? Esta acción no se puede deshacer.
-            </div>
-            <div style={{ padding: '12px 22px 16px', borderTop: '1px solid var(--hair)',
-              display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button className="btn btn-gray" onClick={() => setConfirmClear(false)}>Cancelar</button>
-              <button className="btn btn-danger" onClick={() => { clearAudit(); setConfirmClear(false) }}>
-                <i className="fa fa-trash" aria-hidden="true" /> Sí, limpiar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }
