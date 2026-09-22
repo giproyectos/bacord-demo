@@ -21,7 +21,7 @@ const MODEL = 'llama3.2'
 function buildSystemPrompt(props: Props): string {
   const { br, preLlenado, estructura, procesoActivo, firmasPendientes, desviaciones, procesosCerrados } = props
 
-  const producto = preLlenado?.descripcionMaterial ?? br?.descripcion ?? 'Desconocido'
+  const producto = preLlenado?.descripcionMaterial ?? 'Desconocido'
   const lote = preLlenado?.loteLogistico ?? '—'
   const op = preLlenado?.numeroOrdenProceso ?? '—'
   const tamLote = preLlenado ? `${preLlenado.cantidadOrden} ${preLlenado.unidadMedida}` : '—'
