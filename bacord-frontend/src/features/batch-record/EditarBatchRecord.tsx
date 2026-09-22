@@ -11,6 +11,7 @@ import type { PreLlenadoBR, BatchRecord, RecetaMaestra } from '@/types'
 import type { AuditEntry, AuditAccion } from '@/types/audit'
 import { useAudit } from '@/hooks/useAudit'
 import { usePuedeEditar } from '@/hooks/usePermisos'
+import { GmpChatPanel } from './GmpChatPanel'
 
 // ── Schema component types ───────────────────────────────────────────────
 type SchemaComp =
@@ -2655,6 +2656,16 @@ ${procsSections}
           onClose={() => setCerrarDesvTarget(null)}
         />
       )}
+
+      <GmpChatPanel
+        br={br}
+        preLlenado={preLlenado}
+        estructura={estructura}
+        procesoActivo={procesoActivo}
+        firmasPendientes={totalFirmasCierre - doneFirmasCierre}
+        desviaciones={desviaciones}
+        procesosCerrados={procesosCerrados}
+      />
     </>
   )
 }
