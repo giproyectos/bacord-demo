@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
-import { auditoriaApi } from '@/api/auditoria'
+import { useState, useMemo, useRef } from 'react'
+import { useAuditStore } from '@/stores/auditStore'
 import type { AuditEntry, AuditAccion } from '@/types/audit'
 
 // ── Config ────────────────────────────────────────────────────────────────
@@ -208,12 +208,8 @@ const SESION_ACCIONES: AuditAccion[] = ['LOGIN', 'LOGIN_FALLIDO', 'LOGOUT']
 const PAGE = 25
 
 function LogTable({ acciones, emptyMsg }: { acciones: AuditAccion[]; emptyMsg: string }) {
-  const [allEntries, setAllEntries] = useState<AuditEntry[]>([])
-  const searchRef   = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    auditoriaApi.consultar().then(setAllEntries).catch(() => setAllEntries([]))
-  }, [])
+  const allEntries = useAuditStore(s => s.entries)
+  const searchRef  = useRef<HTMLInputElement>(null)
 
   const [q, setQ]               = useState('')
   const [accionF, setAccionF]   = useState('')
