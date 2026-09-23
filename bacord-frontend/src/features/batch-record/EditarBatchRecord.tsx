@@ -880,6 +880,16 @@ function DetalleCard({ detalle, readonly, firmados, desviaciones, onFirmar, init
 
   const savedDataRef = useRef<Record<string, unknown>>({})
 
+  // When server data arrives (initialValues), seed savedDataRef if not yet
+  // touched by the user so the iframe receives the pre-loaded data on open.
+  const prevInitRef = useRef<Record<string, unknown> | undefined>(undefined)
+  if (initialValues !== prevInitRef.current) {
+    prevInitRef.current = initialValues
+    if (initialValues && Object.keys(initialValues).length > 0 && Object.keys(savedDataRef.current).length === 0) {
+      savedDataRef.current = { ...initialValues }
+    }
+  }
+
   const getInitialData = useCallback((): Record<string, unknown> => {
     if (Object.keys(savedDataRef.current).length > 0) return savedDataRef.current
     return initialValues ? { ...initialValues } : {}
