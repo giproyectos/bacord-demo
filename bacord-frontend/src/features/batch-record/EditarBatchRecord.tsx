@@ -12,6 +12,7 @@ import type { AuditEntry, AuditAccion } from '@/types/audit'
 import { useAudit } from '@/hooks/useAudit'
 import { usePuedeEditar } from '@/hooks/usePermisos'
 import { GmpChatPanel } from './GmpChatPanel'
+import { ReporteBatchRecord } from './ReporteBatchRecord'
 
 // ── Schema component types ───────────────────────────────────────────────
 type SchemaComp =
@@ -1709,6 +1710,7 @@ export function EditarBatchRecord({ readonly = false }: { readonly?: boolean }) 
   const [firmaTarget, setFirmaTarget] = useState<{ detalle: DetalleRow; firma: EstructuraFirmaItem } | null>(null)
   const [showAudit, setShowAudit] = useState(true)
   const [liberarModal, setLiberarModal] = useState(false)
+  const [showReporte, setShowReporte] = useState(false)
   const [derogTarget, setDerogTarget] = useState<{ firmaKey: string; detalleId: number; firmaInfo: FirmaInfo; texto: string; grupo: string } | null>(null)
   const [cerrarDesvTarget, setCerrarDesvTarget] = useState<Desviacion | null>(null)
 
@@ -2546,6 +2548,16 @@ ${procsSections}
                     : 'Requiere re-autenticación del responsable para autorizar la distribución del lote.'}
                 </div>
               </div>
+              <button
+                onClick={() => setShowReporte(true)}
+                style={{
+                  background: '#0A2D63', color: '#F7C92E', border: 'none',
+                  borderRadius: 10, padding: '9px 20px', fontWeight: 700, fontSize: 12,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0,
+                  fontFamily: 'var(--f-sans)',
+                }}>
+                <i className="fa fa-chart-bar" /> Ver Reporte
+              </button>
               {liberacion ? (
                 <span style={{ padding: '5px 16px', background: '#7C3AED', color: '#fff', borderRadius: 20, fontSize: 11, fontWeight: 800, letterSpacing: '.06em' }}>
                   ✓ LIBERADO
@@ -2676,6 +2688,20 @@ ${procsSections}
         desviaciones={desviaciones}
         procesosCerrados={procesosCerrados}
       />
+
+      {showReporte && (
+        <ReporteBatchRecord
+          br={br}
+          preLlenado={preLlenado}
+          estructura={estructura}
+          detalleDatos={detalleDatos}
+          firmas={firmas}
+          procesosCerrados={procesosCerrados}
+          desviaciones={desviaciones}
+          liberacion={liberacion}
+          onClose={() => setShowReporte(false)}
+        />
+      )}
     </>
   )
 }
