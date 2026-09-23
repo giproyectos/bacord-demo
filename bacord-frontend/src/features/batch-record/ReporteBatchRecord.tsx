@@ -167,7 +167,7 @@ function SeccionRendimientos({ et2f3, et3f1, et3f2 }: {
   et3f2: Record<string, unknown>
 }) {
   const kpis = [
-    { label: 'Rend. Encapsulado', value: `${n(et2f3.numRendEncap)}%`, sub: `${et2f3.numCapsulasProd?.toLocaleString('es-CO')} cáps aptas / ${et2f3.numProdTeorRef?.toLocaleString('es-CO')} teóricas`, ok: true },
+    { label: 'Rend. Encapsulado', value: `${n(et2f3.numRendEncap)}%`, sub: `${(et2f3.numCapsulasProd as number | undefined)?.toLocaleString('es-CO')} cáps aptas / ${(et2f3.numProdTeorRef as number | undefined)?.toLocaleString('es-CO')} teóricas`, ok: true },
     { label: 'Rend. Empaque', value: `${n(et3f2.numRendEmpaque)}%`, sub: `${et3f2.numBlistAprobados} blisters aprobados`, ok: true },
     { label: 'Rend. Global', value: `${n(et3f2.numRendGlobal)}%`, sub: `${et3f2.numCajasFinales} cajas finales`, ok: true },
     { label: 'Cajas producidas', value: String(et3f2.numCajasAprobadas ?? '—'), sub: `${et3f2.numCajasRech ?? 0} rechazadas`, ok: true },
@@ -193,7 +193,7 @@ function SeccionRendimientos({ et2f3, et3f1, et3f2 }: {
             <Badge estado={String((et3f1.txtDecisionAQL as string ?? '').includes('APROBADO') ? 'APROBADO' : 'NO CONFORME')} />
           </span>
           <span style={{ fontSize: 10, color: '#64748b', marginLeft: 12 }}>
-            {et3f1.numTotalInsp} uds inspeccionadas · {n(et3f1.numPctDefGlobal)}% defectos globales
+            {String(et3f1.numTotalInsp ?? '—')} uds inspeccionadas · {n(et3f1.numPctDefGlobal)}% defectos globales
           </span>
         </div>
       )}
@@ -218,7 +218,7 @@ function SeccionDesviaciones({ desviaciones }: { desviaciones: Desviacion[] }) {
           {desviaciones.map((d, i) => (
             <tr key={d.id} style={{ background: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
               <td style={{ ...COL, fontWeight: 700 }}>#{d.id}</td>
-              <td style={COL}>{d.detalleCode}</td>
+              <td style={COL}>#{d.idDetalle}</td>
               <td style={COL}>{d.labelCampo}</td>
               <td style={{ ...COL, fontWeight: 700, color: '#dc2626' }}>{d.valorIngresado}</td>
               <td style={{ ...COL, color: '#64748b' }}>{d.limiteInfo}</td>
@@ -275,7 +275,7 @@ const tituloSeccion: React.CSSProperties = {
 export function ReporteBatchRecord({ br, preLlenado, estructura, detalleDatos, firmas, procesosCerrados, desviaciones, liberacion, onClose }: Props) {
   const d = (id: number) => detalleDatos[id] ?? {}
 
-  const producto = preLlenado?.descripcionMaterial ?? br?.descripcion ?? '—'
+  const producto = preLlenado?.descripcionMaterial ?? '—'
   const lote     = preLlenado?.loteLogistico ?? '—'
   const op       = preLlenado?.numeroOrdenProceso ?? '—'
   const tamLote  = preLlenado ? `${preLlenado.cantidadOrden.toLocaleString('es-CO')} ${preLlenado.unidadMedida}` : '—'
