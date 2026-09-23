@@ -2613,6 +2613,11 @@ ${procsSections}
             </button>
           )}
           {brFinalizado && (
+            <button onClick={() => setShowReporte(true)} className="btn btn-primary" style={{ fontSize: 12 }}>
+              <i className="fa fa-chart-bar" /> Ver Reporte
+            </button>
+          )}
+          {brFinalizado && (
             <button onClick={handlePrint} className="btn btn-gray" style={{ fontSize: 12 }}>
               <i className="fa fa-file-pdf" /> {readonly ? 'Paquete de Auditoría' : 'Imprimir'}
             </button>
