@@ -5,6 +5,55 @@ import type { Desviacion } from '@/api/desviaciones'
 interface ProcesoRow { id: number; codigo: string; descripcion: string; orden: number }
 interface Message { role: 'user' | 'assistant'; content: string }
 
+function mdToHtml(text: string): string {
+  // Escape HTML entities first
+  let s = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  // Fenced code blocks
+  s = s.replace(/```(?:\w*\n)?([\s\S]*?)```/g,
+    '<pre style="background:#1e293b;color:#e2e8f0;padding:8px 10px;border-radius:6px;font-size:11px;overflow-x:auto;margin:4px 0">$1</pre>')
+
+  // Inline code
+  s = s.replace(/`([^`\n]+)`/g,
+    '<code style="background:#e2e8f0;color:#0f172a;padding:1px 4px;border-radius:3px;font-size:11px">$1</code>')
+
+  // Bold
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  // Italic
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>')
+
+  // Headers (## and ###)
+  s = s.replace(/^#{3} (.+)$/gm,
+    '<div style="font-weight:700;font-size:12px;color:#0f172a;margin:8px 0 2px">$1</div>')
+  s = s.replace(/^#{1,2} (.+)$/gm,
+    '<div style="font-weight:700;font-size:12.5px;color:#0f172a;margin:10px 0 3px">$1</div>')
+
+  // Horizontal rule
+  s = s.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e2e8f0;margin:6px 0">')
+
+  // Unordered list items — collect consecutive ones
+  s = s.replace(/((?:^[\-\*•] .+$\n?)+)/gm, (block) => {
+    const items = block.trim().split('\n').map(l => `<li>${l.replace(/^[\-\*•] /, '')}</li>`).join('')
+    return `<ul style="margin:4px 0;padding-left:16px;list-style:disc">${items}</ul>`
+  })
+
+  // Ordered list items
+  s = s.replace(/((?:^\d+\. .+$\n?)+)/gm, (block) => {
+    const items = block.trim().split('\n').map(l => `<li>${l.replace(/^\d+\. /, '')}</li>`).join('')
+    return `<ol style="margin:4px 0;padding-left:16px">${items}</ol>`
+  })
+
+  // Paragraph breaks (double newline)
+  s = s.replace(/\n{2,}/g, '<br><br>')
+  // Single newlines
+  s = s.replace(/\n/g, '<br>')
+
+  return s
+}
+
 interface Props {
   br: BatchRecord | null
   preLlenado: PreLlenadoBR | null
@@ -255,15 +304,18 @@ export function GmpChatPanel(props: Props) {
               }}>
                 <div style={{
                   maxWidth: '85%', padding: '8px 12px', borderRadius: 12,
-                  fontSize: 12.5, lineHeight: 1.55,
+                  fontSize: 12.5, lineHeight: 1.6,
                   background: m.role === 'user' ? '#0A2D63' : '#f1f5f9',
                   color: m.role === 'user' ? '#fff' : '#1e293b',
                   borderBottomRightRadius: m.role === 'user' ? 4 : 12,
                   borderBottomLeftRadius: m.role === 'assistant' ? 4 : 12,
-                  whiteSpace: 'pre-wrap',
-                }}>
-                  {m.content}
-                </div>
+                  whiteSpace: m.role === 'user' ? 'pre-wrap' : undefined,
+                }}
+                  {...(m.role === 'assistant'
+                    ? { dangerouslySetInnerHTML: { __html: mdToHtml(m.content) } }
+                    : { children: m.content }
+                  )}
+                />
               </div>
             ))}
             {loading && (
