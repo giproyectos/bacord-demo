@@ -6,7 +6,7 @@ import { batchRecordApi, type EstructuraDetalle, type EstructuraFirmaItem, type 
 import { recetaMaestraApi } from '@/api/recetaMaestra'
 import { materialesApi, type Material } from '@/api/materiales'
 import { desviacionesApi, type Desviacion } from '@/api/desviaciones'
-import { auditoriaApi } from '@/api/auditoria'
+import { useAuditStore } from '@/stores/auditStore'
 import type { PreLlenadoBR, BatchRecord, RecetaMaestra } from '@/types'
 import type { AuditEntry, AuditAccion } from '@/types/audit'
 import { useAudit } from '@/hooks/useAudit'
@@ -1289,15 +1289,10 @@ const AUDIT_CFG: Record<string, { bg: string; color: string; border: string; lab
   LIBERAR_LOTE:   { bg:'#D1FAE5', color:'#065F46', border:'#6EE7B7', label:'Liberación',   icon:'fa-unlock' },
 }
 
-function useBrAudit(brId: string | number | undefined, refreshKey: number) {
-  const [entries, setEntries] = useState<AuditEntry[]>([])
-  useEffect(() => {
-    if (!brId) return
-    // idEntidad no es único entre tipos de entidad (un idUsuario de Sesion puede coincidir
-    // numéricamente con un idBatchRecord) — se excluyen eventos de Sesion, que nunca pertenecen a un BR.
-    auditoriaApi.consultar({ idEntidad: brId }).then(all => setEntries(all.filter(e => e.entidad !== 'Sesion'))).catch(() => setEntries([]))
-  }, [brId, refreshKey])
-  return entries
+function useBrAudit(brId: string | number | undefined, _refreshKey: number) {
+  const all = useAuditStore(s => s.entries)
+  if (!brId) return []
+  return all.filter(e => e.entidad !== 'Sesion' && String(e.idEntidad) === String(brId))
 }
 
 function AuditPreviewPanel({ brId, refreshKey }: { brId: string | number; refreshKey: number }) {
