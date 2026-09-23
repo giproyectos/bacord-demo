@@ -101,13 +101,16 @@ export function GmpChatPanel(props: Props) {
     setInput('')
     setLoading(true)
 
+    // Add empty assistant message that we'll fill token by token
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+
     try {
       const res = await fetch(OLLAMA_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: MODEL,
-          stream: false,
+          stream: true,
           messages: [
             { role: 'system', content: buildSystemPrompt(props) },
             ...newMessages.map(m => ({ role: m.role, content: m.content })),
@@ -116,14 +119,46 @@ export function GmpChatPanel(props: Props) {
       })
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      const reply = data.choices?.[0]?.message?.content ?? 'Sin respuesta.'
-      setMessages(prev => [...prev, { role: 'assistant', content: reply }])
+
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        for (const line of chunk.split('\n')) {
+          const trimmed = line.replace(/^data:\s*/, '').trim()
+          if (!trimmed || trimmed === '[DONE]') continue
+          try {
+            const json = JSON.parse(trimmed)
+            const token = json.choices?.[0]?.delta?.content ?? ''
+            if (token) {
+              accumulated += token
+              setMessages(prev => {
+                const next = [...prev]
+                next[next.length - 1] = { role: 'assistant', content: accumulated }
+                return next
+              })
+            }
+          } catch { /* skip malformed chunk */ }
+        }
+      }
+
+      if (!accumulated) {
+        setMessages(prev => {
+          const next = [...prev]
+          next[next.length - 1] = { role: 'assistant', content: 'Sin respuesta.' }
+          return next
+        })
+      }
     } catch (e) {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: '⚠️ No se pudo conectar con Ollama. Verifica que esté corriendo en `localhost:11434`.',
-      }])
+      setMessages(prev => {
+        const next = [...prev]
+        next[next.length - 1] = { role: 'assistant', content: '⚠️ No se pudo conectar con Ollama. Verifica que esté corriendo en `localhost:11434`.' }
+        return next
+      })
     } finally {
       setLoading(false)
     }
