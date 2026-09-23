@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { PreLlenadoBR, BatchRecord } from '@/types'
 import type { Desviacion } from '@/api/desviaciones'
 import type { BatchRecordFirmaRegistrada } from '@/api/batchRecord'
@@ -271,9 +272,28 @@ const tituloSeccion: React.CSSProperties = {
   marginTop: 0, textTransform: 'uppercase', letterSpacing: '0.04em',
 }
 
+// ── markdown renderer (para respuesta del LLM) ────────────────────────────
+function mdToHtml(text: string): string {
+  let s = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  s = s.replace(/^#{1,3} (.+)$/gm, '<div style="font-weight:700;margin:8px 0 2px">$1</div>')
+  s = s.replace(/((?:^[\-\*] .+$\n?)+)/gm, (block) => {
+    const items = block.trim().split('\n').map(l => `<li>${l.replace(/^[\-\*] /, '')}</li>`).join('')
+    return `<ul style="margin:4px 0;padding-left:18px">${items}</ul>`
+  })
+  s = s.replace(/\n{2,}/g, '<br><br>').replace(/\n/g, '<br>')
+  return s
+}
+
 // ── componente principal ───────────────────────────────────────────────────
 export function ReporteBatchRecord({ br, preLlenado, estructura, detalleDatos, firmas, procesosCerrados, desviaciones, liberacion, onClose }: Props) {
   const d = (id: number) => detalleDatos[id] ?? {}
+
+  const [aiText,      setAiText]      = useState('')
+  const [aiLoading,   setAiLoading]   = useState(false)
+  const [aiError,     setAiError]     = useState(false)
+  const [aiGenerated, setAiGenerated] = useState(false)
 
   const producto = preLlenado?.descripcionMaterial ?? '—'
   const lote     = preLlenado?.loteLogistico ?? '—'
@@ -282,10 +302,83 @@ export function ReporteBatchRecord({ br, preLlenado, estructura, detalleDatos, f
   const fechaFab = preLlenado?.fechaFabricacion ?? '—'
   const fechaCad = preLlenado?.fechaCaducidad ?? '—'
 
-  const etapasTotal   = estructura.length
+  const etapasTotal    = estructura.length
   const etapasCerradas = estructura.filter(e => procesosCerrados.has(e.id)).length
 
   const printReport = () => window.print()
+
+  const generateAnalysis = async () => {
+    setAiLoading(true); setAiError(false); setAiText(''); setAiGenerated(false)
+
+    const etapasStr = estructura.map(e =>
+      `  - ${e.codigo} ${e.descripcion}: ${procesosCerrados.has(e.id) ? 'CERRADA' : 'EN PROCESO'}`
+    ).join('\n')
+
+    const desvStr = desviaciones.length
+      ? desviaciones.map(d2 => `  - ${d2.descripcion} [${d2.estado}] — valor: ${d2.valorIngresado}, límite: ${d2.limiteInfo}`).join('\n')
+      : '  Ninguna'
+
+    const rendStr = (() => {
+      const e = d(203); const e2 = d(302)
+      const parts: string[] = []
+      if (e.numRendEncap) parts.push(`Rend. encapsulado: ${n(e.numRendEncap)}%`)
+      if (e2.numRendEmpaque) parts.push(`Rend. empaque: ${n(e2.numRendEmpaque)}%`)
+      if (e2.numRendGlobal) parts.push(`Rend. global: ${n(e2.numRendGlobal)}%`)
+      return parts.length ? parts.join(' | ') : 'No disponible'
+    })()
+
+    const prompt = `Eres un experto en Buenas Prácticas de Manufactura (BPM/GMP) farmacéutica. Analiza el siguiente resumen de un Batch Record y genera un análisis técnico GMP conciso.
+
+LOTE: ${lote}
+PRODUCTO: ${producto}
+ORDEN DE PROCESO: ${op}
+TAMAÑO DE LOTE: ${tamLote}
+ESTADO: ${liberacion ? 'LIBERADO' : 'EN PROCESO'}
+${liberacion ? `LIBERADO POR: ${liberacion.nombre} el ${liberacion.fecha}` : ''}
+
+ETAPAS (${etapasCerradas}/${etapasTotal} cerradas):
+${etapasStr}
+
+RENDIMIENTOS: ${rendStr}
+
+DESVIACIONES:
+${desvStr}
+
+FIRMAS REGISTRADAS: ${firmas.length} firmas electrónicas
+
+Proporciona:
+1. **Resumen de conformidad GMP** — ¿el lote cumple los requisitos generales?
+2. **Puntos críticos identificados** — desviaciones, etapas pendientes, riesgos
+3. **Conclusión y recomendación** — ¿se recomienda liberar, retener o investigar?
+
+Responde en español, de forma técnica y concisa (máx 300 palabras). Indica que es un análisis orientativo generado por IA.`
+
+    try {
+      const res = await fetch('http://localhost:11434/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'llama3.2', stream: true, messages: [{ role: 'user', content: prompt }] }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let acc = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+          const t = line.replace(/^data:\s*/, '').trim()
+          if (!t || t === '[DONE]') continue
+          try { const token = JSON.parse(t).choices?.[0]?.delta?.content ?? ''; if (token) { acc += token; setAiText(acc) } } catch { /* skip */ }
+        }
+      }
+      setAiGenerated(true)
+    } catch {
+      setAiError(true)
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   return (
     <>
@@ -325,11 +418,23 @@ export function ReporteBatchRecord({ br, preLlenado, estructura, detalleDatos, f
             color: '#fff', borderRadius: 8, padding: '7px 18px', fontSize: 13,
             cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
           }}>← Volver al Batch Record</button>
-          <button onClick={printReport} style={{
-            background: '#F7C92E', border: 'none', color: '#0A2D63',
-            borderRadius: 8, padding: '8px 22px', fontSize: 13, fontWeight: 700,
-            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-          }}>🖨 Imprimir / Exportar PDF</button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={generateAnalysis} disabled={aiLoading} style={{
+              background: aiGenerated ? '#0A2D63' : 'rgba(255,255,255,0.15)',
+              border: `1px solid ${aiGenerated ? '#F7C92E' : 'rgba(255,255,255,0.3)'}`,
+              color: aiGenerated ? '#F7C92E' : '#fff',
+              borderRadius: 8, padding: '7px 18px', fontSize: 13, fontWeight: 700,
+              cursor: aiLoading ? 'wait' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6, opacity: aiLoading ? 0.75 : 1,
+            }}>
+              {aiLoading ? '⏳ Generando…' : aiGenerated ? '🤖 Regenerar análisis' : '🤖 Generar análisis IA'}
+            </button>
+            <button onClick={printReport} style={{
+              background: '#F7C92E', border: 'none', color: '#0A2D63',
+              borderRadius: 8, padding: '8px 22px', fontSize: 13, fontWeight: 700,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+            }}>🖨 Imprimir / Exportar PDF</button>
+          </div>
         </div>
 
         {/* Papel */}
@@ -458,6 +563,34 @@ export function ReporteBatchRecord({ br, preLlenado, estructura, detalleDatos, f
 
           {/* ── Desviaciones ── */}
           <SeccionDesviaciones desviaciones={desviaciones} />
+
+          {/* ── Análisis IA ── */}
+          {(aiText || aiLoading || aiError) && (
+            <section style={{ marginBottom: 24, pageBreakInside: 'avoid' }}>
+              <h3 style={tituloSeccion}>Análisis GMP — Asistente IA</h3>
+              <div style={{
+                background: '#f8fafc', border: '1.5px solid #e2e8f0',
+                borderRadius: 10, padding: '16px 20px',
+                fontSize: 12.5, lineHeight: 1.8, color: '#1e293b',
+                minHeight: 60,
+              }}>
+                {aiLoading && !aiText && (
+                  <span style={{ color: '#64748b', fontStyle: 'italic' }}>Analizando el lote…</span>
+                )}
+                {aiError && (
+                  <span style={{ color: '#dc2626' }}>⚠️ No se pudo conectar con Ollama. Verifica que esté corriendo en localhost:11434.</span>
+                )}
+                {aiText && (
+                  <div dangerouslySetInnerHTML={{ __html: mdToHtml(aiText) }} />
+                )}
+              </div>
+              {aiGenerated && (
+                <div style={{ marginTop: 6, fontSize: 10, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  🤖 Generado por IA (llama3.2 — Ollama local) · Análisis orientativo — no reemplaza la revisión GMP oficial
+                </div>
+              )}
+            </section>
+          )}
 
           {/* ── Firmas ── */}
           <SeccionFirmas firmas={firmas} />
