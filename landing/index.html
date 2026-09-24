@@ -175,13 +175,6 @@ input, textarea { font-family: inherit; }
   .mock-alert, .demo-mock--validar .mock-field, .mock-checklist li, .mock-bars span, .mock-bar-hl { animation: none !important; }
 }
 
-/* ── sandbox banner ── */
-.sandbox-banner { background: linear-gradient(120deg, var(--navy-900) 0%, var(--navy) 100%); border-radius: var(--r-xl); padding: 44px 40px; color: #fff; display: flex; align-items: center; gap: 32px; justify-content: space-between; }
-.sandbox-text h2 { font-family: var(--f-display); font-size: 24px; font-weight: 800; margin: 10px 0; letter-spacing: -.02em; }
-.sandbox-text p { font-size: 14px; color: rgba(255,255,255,.75); max-width: 480px; line-height: 1.6; margin: 0; }
-.sandbox-banner .btn { flex-shrink: 0; }
-@media (max-width: 720px) { .sandbox-banner { flex-direction: column; text-align: center; } .sandbox-text p { margin: 0 auto; } }
-
 /* ── pricing ── */
 .plan { background: var(--white); border: 1.5px solid var(--hair-2); border-radius: var(--r-lg); padding: 26px 24px; display: flex; flex-direction: column; position: relative; }
 .plan.destacado { border-color: var(--navy); box-shadow: var(--sh-3); }
@@ -264,7 +257,7 @@ input, textarea { font-family: inherit; }
     </h1>
     <p class="hero-sub">
       BACORD digitaliza tu lote de punta a punta: menos errores, firmas que no se atascan, y visibilidad real de lo que pasa en planta.
-      Cuéntanos sobre tu operación y te mostramos cómo aplica, con sandbox en vivo incluido si quieres explorarlo tú mismo.
+      Cuéntanos sobre tu operación y te mostramos cómo aplica a tu planta.
     </p>
     <div class="hero-ctas">
       <a href="#contacto" class="btn btn-accent">
@@ -388,8 +381,8 @@ input, textarea { font-family: inherit; }
             <tr>
               <td class="criterio">Cómo se compra</td>
               <td>—</td>
-              <td>RFP, demo bajo NDA</td>
-              <td class="hl">Se prueba en vivo, antes de la llamada</td>
+              <td>RFP, meses de proceso</td>
+              <td class="hl">Conversación directa con el equipo</td>
             </tr>
           </tbody>
         </table>
@@ -444,26 +437,6 @@ input, textarea { font-family: inherit; }
             <p>Cómo la analítica encuentra la causa raíz sobre datos reales del lote.</p>
           </div>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Sandbox en vivo ── -->
-  <section class="section" id="sandbox">
-    <div class="container">
-      <div class="sandbox-banner">
-        <div class="sandbox-text">
-          <div class="eyebrow" style="color:var(--yellow)">Sandbox en vivo</div>
-          <h2>Entra y pruébalo tú mismo, sin agendar nada</h2>
-          <p>
-            Un sandbox con datos ficticios, listo para explorar: crea un lote, valida un campo en tiempo real,
-            dispara una desviación — y si quieres, genera el paquete de auditoría. Sin registro complicado, sin esperar a que alguien te llame.
-          </p>
-        </div>
-        <!-- TODO: reemplazar href por la URL real del sandbox una vez publicado -->
-        <a href="#" class="btn btn-accent">
-          <i class="fa fa-arrow-right-to-bracket" aria-hidden="true"></i> Entrar al sandbox
-        </a>
       </div>
     </div>
   </section>
