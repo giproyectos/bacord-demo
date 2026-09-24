@@ -9,7 +9,6 @@ const lz = (fn: () => Promise<Record<string, unknown>>, key: string) =>
   lazy(() => fn().then(m => ({ default: m[key] as React.ComponentType })))
 
 // Pantallas
-const LandingPage          = lz(() => import('@/features/landing/LandingPage'), 'LandingPage')
 const LoginPage            = lz(() => import('@/features/auth/LoginPage'), 'LoginPage')
 const ActivarCuentaPage    = lz(() => import('@/features/auth/ActivarCuentaPage'), 'ActivarCuentaPage')
 const ConfigurarPinPage    = lz(() => import('@/features/auth/ConfigurarPinPage'), 'ConfigurarPinPage')
@@ -54,7 +53,6 @@ function Spin() {
 const w = (el: React.ReactNode) => <ErrorBoundary><Suspense fallback={<Spin />}>{el}</Suspense></ErrorBoundary>
 
 export const router = createBrowserRouter([
-  { path: '/landing', element: <AuthLayout />, children: [{ index: true, element: w(<LandingPage />) }] },
   { path: '/login', element: <AuthLayout />, children: [{ index: true, element: w(<LoginPage />) }] },
   { path: '/activar-cuenta', element: <AuthLayout />, children: [{ index: true, element: w(<ActivarCuentaPage />) }] },
   { path: '/auth/callback', element: <AuthLayout />, children: [{ index: true, element: w(<OidcCallbackPage />) }] },
